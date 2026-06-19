@@ -1,31 +1,88 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crown, RefreshCcw, Swords, Trophy } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DemoSearch, Layout } from "@/components/portfolio/Layout";
-import { player } from "@/lib/mock-data";
+import { demoDecks, demoEvents, player, type Card, type Player } from "@/lib/mock-data";
 
 const heroes = [
-  { name: "Hog Rider", copy: "the Hog Rider punishes those who hide behind their puny walls!", art: "/images/art/hog-rider.png" },
-  { name: "The Bowler", copy: "the Hog Rider punishes those who hide behind their puny walls!", art: "/images/art/the-bowler.png" },
-  { name: "Prince", copy: "the Hog Rider punishes those who hide behind their puny walls!", art: "/images/art/prince.png" }
+  { name: "Hog Rider", copy: "Fast lane pressure for trophy pushing.", art: "/images/art/hog-rider.png" },
+  { name: "Goblinstein", copy: "New champion data joins the deck lab.", art: "/images/art/goblin-giant.png" },
+  { name: "Royal Chef", copy: "Cook rotations before the arena timer burns.", art: "/images/art/royal-recruits.png" }
 ];
 
 export default function HomePage() {
+  const [activeHero, setActiveHero] = useState(0);
+  const [activeDeck, setActiveDeck] = useState(0);
+  const [battleIndex, setBattleIndex] = useState(0);
+  const [archetype, setArchetype] = useState<"All" | "Control" | "Cycle" | "Beatdown" | "Bait">("All");
+
+  const playerQuery = useQuery<Player>({
+    queryKey: ["demo-player", "home"],
+    queryFn: async () => {
+      const response = await fetch("/api/demo/player");
+      if (!response.ok) throw new Error("Unable to load demo player");
+      return response.json();
+    },
+    initialData: player
+  });
+
+  const demoPlayer = playerQuery.data;
+  const filteredDecks = useMemo(
+    () => demoDecks.filter((deck) => archetype === "All" || deck.archetype === archetype),
+    [archetype]
+  );
+  const selectedDeck = filteredDecks[Math.min(activeDeck, filteredDecks.length - 1)] ?? demoDecks[0];
+  const selectedBattle = demoPlayer.battles[battleIndex % demoPlayer.battles.length];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveHero((index) => (index + 1) % heroes.length);
+    }, 4200);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <Layout variant="home">
       <section className="home-hero">
         <h1>Track Your Clash Royale<br />Stats and Chests</h1>
         <DemoSearch />
         <div className="hero-cards">
-          {heroes.map((hero) => (
-            <article key={hero.name} className="hero-card">
+          {heroes.map((hero, index) => (
+            <button
+              key={hero.name}
+              type="button"
+              className={`hero-card ${activeHero === index ? "active" : ""}`}
+              onClick={() => setActiveHero(index)}
+            >
               <div>
                 <h2>{hero.name}</h2>
                 <p>{hero.copy}</p>
               </div>
               <Image src={hero.art} alt={hero.name} width={220} height={220} />
-            </article>
+            </button>
           ))}
+        </div>
+      </section>
+
+      <section className="demo-command page-band">
+        <div key={heroes[activeHero].name} className="command-spotlight">
+          <Image src={heroes[activeHero].art} alt="" width={190} height={210} />
+          <div>
+            <span>Interactive mock demo</span>
+            <h2>{heroes[activeHero].name} Console</h2>
+            <p>{heroes[activeHero].copy} Change cards, rotate battles, refresh mock data, and preview the same data states a real Clash Royale integration would drive.</p>
+          </div>
+        </div>
+        <div className="command-stats">
+          <Metric icon={<Trophy size={19} />} value={demoPlayer.trophies.toLocaleString()} label="live trophies" />
+          <Metric icon={<Crown size={19} />} value={selectedDeck.winRate.toFixed(1) + "%"} label="deck win rate" />
+          <Metric icon={<Swords size={19} />} value={selectedBattle.result} label="last battle" />
+          <button type="button" onClick={() => playerQuery.refetch()} className={playerQuery.isFetching ? "is-fetching" : ""}>
+            <RefreshCcw size={17} />Refresh demo
+          </button>
         </div>
       </section>
 
@@ -35,17 +92,17 @@ export default function HomePage() {
           <Link href="/players/CCDEMO" className="pink-button">See all games</Link>
         </div>
         <div className="game-board">
-          <PlayerMini name="Dark Light" clan="Mega Stars" />
-          <DeckStrip cards={player.deck} />
+          <PlayerMini name={demoPlayer.name} clan={demoPlayer.clan} />
+          <DeckStrip cards={selectedBattle.deck} />
           <div className="score-card">
-            <span>25 Jun, 2017</span>
-            <strong><i>3</i> - <i>2</i></strong>
-            <span>10 min ago</span>
+            <span>{selectedBattle.date}</span>
+            <strong><i>{selectedBattle.crowns[0]}</i> - <i>{selectedBattle.crowns[1]}</i></strong>
+            <span>{selectedBattle.mode} · {selectedBattle.trophyChange > 0 ? "+" : ""}{selectedBattle.trophyChange}</span>
           </div>
-          <DeckStrip cards={[...player.deck].reverse()} />
-          <PlayerMini name="SuperBag" clan="Synetics" />
+          <DeckStrip cards={[...selectedBattle.deck].reverse()} />
+          <PlayerMini name={selectedBattle.opponent} clan="Synetics" />
         </div>
-        <Pager />
+        <Pager onPrevious={() => setBattleIndex((index) => (index + demoPlayer.battles.length - 1) % demoPlayer.battles.length)} onNext={() => setBattleIndex((index) => (index + 1) % demoPlayer.battles.length)} />
       </section>
 
       <section className="mirror-band">
@@ -59,23 +116,78 @@ export default function HomePage() {
           <h2>Deck of the day</h2>
           <Link href="/decks" className="pink-button">See all decks</Link>
         </div>
+        <div className="archetype-tabs" aria-label="Deck archetype filters">
+          {["All", "Control", "Cycle", "Beatdown", "Bait"].map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={archetype === item ? "active" : ""}
+              onClick={() => {
+                setArchetype(item as typeof archetype);
+                setActiveDeck(0);
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
         <div className="deck-row">
           <div className="elixir-pill">
             <Image src="/images/icons/elixir.png" alt="" width={26} height={26} />
-            <strong>4.5 elixir<span>average cost</span></strong>
+            <strong>{selectedDeck.cost.toFixed(1)} elixir<span>average cost</span></strong>
           </div>
-          <DeckStrip cards={player.deck} />
-          <Link href="/decks" className="copy-deck">
+          <DeckStrip cards={selectedDeck.cards} />
+          <button type="button" className="copy-deck" onClick={() => setActiveDeck((index) => (index + 1) % filteredDecks.length)}>
             <Image src="/images/icons/copy.png" alt="" width={26} height={28} />
-            Copy Deck
-          </Link>
+            Swap Deck
+          </button>
+        </div>
+        <div className="deck-demo-copy">
+          <strong>{selectedDeck.name}</strong>
+          <span>{selectedDeck.spotlight}</span>
         </div>
         <div className="deck-metrics">
-          <strong>55.67%<span>deck win rate</span></strong>
-          <strong>12 247<span>games tracked</span></strong>
-          <strong>0.77<span>crowns per game</span></strong>
+          <strong>{selectedDeck.winRate.toFixed(1)}%<span>deck win rate</span></strong>
+          <strong>{selectedDeck.usage.toFixed(1)}%<span>usage rate</span></strong>
+          <strong>{selectedDeck.crowns.toFixed(2)}<span>crowns per game</span></strong>
         </div>
-        <Pager />
+        <Pager onPrevious={() => setActiveDeck((index) => (index + filteredDecks.length - 1) % filteredDecks.length)} onNext={() => setActiveDeck((index) => (index + 1) % filteredDecks.length)} />
+      </section>
+
+      <section className="event-lab page-band">
+        <div className="section-title-row">
+          <h2>Event Lab</h2>
+          <Link href="/clans/CCDEMO" className="pink-button">Clan board</Link>
+        </div>
+        <div className="event-grid">
+          {demoEvents.map((event) => (
+            <article key={event.name} className="event-card">
+              <Image src={event.image} alt="" width={88} height={108} />
+              <div>
+                <span>{event.mode}</span>
+                <strong>{event.name}</strong>
+                <small>{event.reward}</small>
+                <div className="event-progress"><i style={{ width: `${event.progress}%` }} /></div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="chest-demo page-band">
+        <div className="section-title-row">
+          <h2>Chest Timeline</h2>
+          <button type="button" className="pink-button" onClick={() => playerQuery.refetch()}>Resync</button>
+        </div>
+        <div className="chest-demo-row">
+          {demoPlayer.chests.slice(0, 8).map((chest, index) => (
+            <div key={`${chest.name}-${index}`} className={index === 0 ? "active" : ""}>
+              <Image src={chest.image} alt={chest.name} width={58} height={58} />
+              <strong>{index === 0 ? "Next" : `+${chest.index}`}</strong>
+              <span>{chest.name}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="popular page-band">
@@ -97,6 +209,16 @@ export default function HomePage() {
   );
 }
 
+function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+  return (
+    <div className="command-metric">
+      {icon}
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function PlayerMini({ name, clan }: { name: string; clan: string }) {
   return (
     <div className="player-mini">
@@ -108,7 +230,7 @@ function PlayerMini({ name, clan }: { name: string; clan: string }) {
   );
 }
 
-function DeckStrip({ cards }: { cards: typeof player.deck }) {
+function DeckStrip({ cards }: { cards: Card[] }) {
   return (
     <div className="deck-strip">
       {cards.map((card, index) => (
@@ -118,11 +240,11 @@ function DeckStrip({ cards }: { cards: typeof player.deck }) {
   );
 }
 
-function Pager() {
+function Pager({ onPrevious, onNext }: { onPrevious?: () => void; onNext?: () => void }) {
   return (
     <div className="pager">
-      <button type="button" aria-label="Previous"><ChevronLeft size={18} /></button>
-      <button type="button" aria-label="Next"><ChevronRight size={18} /></button>
+      <button type="button" aria-label="Previous" onClick={onPrevious}><ChevronLeft size={18} /></button>
+      <button type="button" aria-label="Next" onClick={onNext}><ChevronRight size={18} /></button>
     </div>
   );
 }

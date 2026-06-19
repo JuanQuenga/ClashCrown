@@ -57,6 +57,25 @@ export type Clan = {
   members: ClanMember[];
 };
 
+export type DemoDeck = {
+  name: string;
+  archetype: "Control" | "Cycle" | "Beatdown" | "Bait";
+  spotlight: string;
+  winRate: number;
+  usage: number;
+  crowns: number;
+  cost: number;
+  cards: Card[];
+};
+
+export type DemoEvent = {
+  name: string;
+  mode: string;
+  reward: string;
+  progress: number;
+  image: string;
+};
+
 const card = (
   name: string,
   elixir: number,
@@ -85,10 +104,90 @@ export const cards = [
   card("Phoenix", 4, "Legendary"),
   card("Skeleton King", 4, "Champion"),
   card("Miner", 3, "Legendary"),
-  card("Goblin Barrel", 3, "Epic")
+  card("Goblin Barrel", 3, "Epic"),
+  card("Little Prince", 3, "Champion"),
+  card("Goblinstein", 5, "Champion"),
+  card("Rune Giant", 4, "Epic"),
+  card("Royal Chef", 4, "Champion"),
+  card("Spirit Empress", 6, "Champion"),
+  card("Goblin Machine", 5, "Legendary"),
+  card("Goblin Demolisher", 4, "Rare"),
+  card("Goblin Curse", 2, "Epic"),
+  card("Baby Goblins", 2, "Common"),
+  card("Berserker", 2, "Rare"),
+  card("Boss Bandit", 6, "Champion"),
+  card("Raging Prince", 5, "Epic"),
+  card("Rocket Silo", 5, "Epic")
 ];
 
 const deck = cards.slice(0, 8);
+
+export const demoDecks: DemoDeck[] = [
+  {
+    name: "Goblinstein Control",
+    archetype: "Control",
+    spotlight: "New-card pressure with spell bait cleanup.",
+    winRate: 58.4,
+    usage: 12.8,
+    crowns: 1.14,
+    cost: 3.9,
+    cards: [cards[17], cards[14], cards[11], cards[1], cards[8], cards[10], cards[23], cards[7]]
+  },
+  {
+    name: "Royal Chef Cycle",
+    archetype: "Cycle",
+    spotlight: "Fast rotations, protected champion value.",
+    winRate: 56.9,
+    usage: 9.6,
+    crowns: 0.94,
+    cost: 3.1,
+    cards: [cards[19], cards[16], cards[10], cards[11], cards[8], cards[1], cards[24], cards[25]]
+  },
+  {
+    name: "Rune Giant Beatdown",
+    archetype: "Beatdown",
+    spotlight: "Heavy lane commitment with late-game scaling.",
+    winRate: 54.7,
+    usage: 7.4,
+    crowns: 1.31,
+    cost: 4.4,
+    cards: [cards[18], cards[2], cards[5], cards[1], cards[12], cards[6], cards[3], cards[10]]
+  },
+  {
+    name: "Goblin Curse Bait",
+    archetype: "Bait",
+    spotlight: "Split threats force awkward small-spell timing.",
+    winRate: 53.8,
+    usage: 10.2,
+    crowns: 1.02,
+    cost: 3.3,
+    cards: [cards[23], cards[15], cards[7], cards[24], cards[25], cards[11], cards[1], cards[8]]
+  }
+];
+
+export const demoEvents: DemoEvent[] = [
+  {
+    name: "Goblin Queen Draft",
+    mode: "Draft",
+    reward: "Legendary Chest",
+    progress: 68,
+    image: "/images/cards/goblin-machine.png"
+  },
+  {
+    name: "Rune Rush",
+    mode: "Triple Elixir",
+    reward: "2,500 Gold",
+    progress: 42,
+    image: "/images/cards/rune-giant.png"
+  },
+  {
+    name: "Chef's Table",
+    mode: "Duel",
+    reward: "Champion Wild Card",
+    progress: 81,
+    image: "/images/cards/royal-chef.png"
+  }
+];
 
 export const player: Player = {
   tag: "9LPRVLD0",

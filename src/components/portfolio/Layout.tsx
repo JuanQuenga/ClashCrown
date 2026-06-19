@@ -15,7 +15,7 @@ export function Layout({ children, variant = "profile" }: { children: React.Reac
     <div className={`site-frame ${variant === "home" ? "site-frame-home" : ""}`}>
       <header className="site-header">
         <Link href="/" className="logo-link" aria-label="Clash Crown home">
-          <Image src="/images/logo/clash-crown-wide.png" alt="Clash Crown" width={174} height={75} priority />
+          <Image src="/images/logo/clash-crown-purple-wide.png" alt="Clash Crown" width={315} height={100} priority />
         </Link>
         <nav className="top-nav" aria-label="Primary navigation">
           {navItems.map((item) => (
