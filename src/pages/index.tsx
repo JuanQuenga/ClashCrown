@@ -71,9 +71,9 @@ export default function HomePage() {
         <div key={heroes[activeHero].name} className="command-spotlight">
           <Image src={heroes[activeHero].art} alt="" width={190} height={210} />
           <div>
-            <span>Interactive mock demo</span>
+            <span>Live API-ready command center</span>
             <h2>{heroes[activeHero].name} Console</h2>
-            <p>{heroes[activeHero].copy} Change cards, rotate battles, refresh mock data, and preview the same data states a real Clash Royale integration would drive.</p>
+            <p>{heroes[activeHero].copy} Search any player or clan tag above to load live stats, battle logs, chest cycles, rosters, and cards through the Convex-powered backend.</p>
           </div>
         </div>
         <div className="command-stats">
@@ -81,7 +81,7 @@ export default function HomePage() {
           <Metric icon={<Crown size={19} />} value={selectedDeck.winRate.toFixed(1) + "%"} label="deck win rate" />
           <Metric icon={<Swords size={19} />} value={selectedBattle.result} label="last battle" />
           <button type="button" onClick={() => playerQuery.refetch()} className={playerQuery.isFetching ? "is-fetching" : ""}>
-            <RefreshCcw size={17} />Refresh demo
+            <RefreshCcw size={17} />Refresh snapshot
           </button>
         </div>
       </section>
@@ -107,8 +107,6 @@ export default function HomePage() {
 
       <section className="mirror-band">
         <Image src="/images/art/mirror-battle-week.png" alt="Mirror Battle Week" width={365} height={190} />
-        <button type="button" aria-label="Previous"><ChevronLeft size={24} /></button>
-        <button type="button" aria-label="Next"><ChevronRight size={24} /></button>
       </section>
 
       <section className="deck-day page-band">
@@ -241,6 +239,7 @@ function DeckStrip({ cards }: { cards: Card[] }) {
 }
 
 function Pager({ onPrevious, onNext }: { onPrevious?: () => void; onNext?: () => void }) {
+  if (!onPrevious && !onNext) return null;
   return (
     <div className="pager">
       <button type="button" aria-label="Previous" onClick={onPrevious}><ChevronLeft size={18} /></button>

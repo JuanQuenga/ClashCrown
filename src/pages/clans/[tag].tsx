@@ -1,17 +1,43 @@
 import Head from "next/head";
+import { useRouter } from "next/router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClanChart, ClanChestProgress, ClanProfile, MemberTable } from "@/components/portfolio/ClanSections";
+import { useAction } from "convex/react";
+import { ClanChestProgress, ClanProfile, MemberTable } from "@/components/portfolio/ClanSections";
+import { ErrorState, LoadingState, SetupState } from "@/components/portfolio/AsyncState";
 import { Layout } from "@/components/portfolio/Layout";
-import { clan as mockClan, getClan } from "@/lib/mock-data";
+import { clan as mockClan, type Clan } from "@/lib/mock-data";
+import { clanBundleAction, errorMessage, isConvexConfigured } from "@/lib/convex";
+import { mapClanBundle } from "@/lib/clash/mappers";
 
 export default function ClanPage() {
-  const { data: clan } = useQuery({
-    queryKey: ["clan", "CCDEMO"],
-    queryFn: getClan,
-    initialData: mockClan
+  const router = useRouter();
+  const tag = typeof router.query.tag === "string" ? router.query.tag : "";
+
+  if (!router.isReady) return <Layout><LoadingState label="clan" /></Layout>;
+  if (tag.toUpperCase() === "CCDEMO") return <ClanDashboard clan={mockClan} />;
+  if (!isConvexConfigured) return <Layout><SetupState feature="clan profiles" /></Layout>;
+  return <LiveClan tag={tag} />;
+}
+
+function LiveClan({ tag }: { tag: string }) {
+  const getClanBundle = useAction(clanBundleAction);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const query = useQuery({
+    queryKey: ["clan", tag, refreshKey],
+    queryFn: async () => mapClanBundle(await getClanBundle({ tag, force: refreshKey > 0 })),
+    placeholderData: (previous) => previous,
+    retry: false
   });
 
-  if (!clan) return null;
+  if (query.isLoading) return <Layout><LoadingState label="clan" /></Layout>;
+  if (query.error) return <Layout><ErrorState message={errorMessage(query.error)} /></Layout>;
+  if (!query.data) return <Layout><ErrorState message="No clan data was returned." /></Layout>;
+  return <ClanDashboard clan={query.data} isRefreshing={query.isFetching} onRefresh={() => setRefreshKey((value) => value + 1)} />;
+}
+
+function ClanDashboard({ clan, isRefreshing = false, onRefresh = () => undefined }: { clan: Clan; isRefreshing?: boolean; onRefresh?: () => void }) {
+
 
   return (
     <Layout>
@@ -20,9 +46,8 @@ export default function ClanPage() {
       </Head>
       <div className="profile-page clan-page">
         <ClanProfile clan={clan} />
-        <ClanChestProgress />
-        <ClanChart />
-        <MemberTable clan={clan} />
+        <ClanChestProgress clan={clan} />
+        <MemberTable clan={clan} onRefresh={onRefresh} isRefreshing={isRefreshing} />
       </div>
     </Layout>
   );

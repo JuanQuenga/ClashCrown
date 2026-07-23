@@ -1,17 +1,45 @@
 import Head from "next/head";
+import { useRouter } from "next/router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAction } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
-import { ChestList, PlayerHero, PlayerStats, PlayerTabs, ProgressionChart } from "@/components/portfolio/PlayerSections";
-import { getPlayer, player as mockPlayer } from "@/lib/mock-data";
+import { ErrorState, LoadingState, SetupState } from "@/components/portfolio/AsyncState";
+import { BattleHistory, CardCollection, ChestList, DeckOverview, PlayerHero, PlayerStats, PlayerTabs, ProgressionChart, type PlayerTab } from "@/components/portfolio/PlayerSections";
+import { player as mockPlayer, type Player } from "@/lib/mock-data";
+import { errorMessage, isConvexConfigured, playerBundleAction } from "@/lib/convex";
+import { mapPlayerBundle } from "@/lib/clash/mappers";
 
 export default function PlayerPage() {
-  const { data: player } = useQuery({
-    queryKey: ["player", "CCDEMO"],
-    queryFn: getPlayer,
-    initialData: mockPlayer
+  const router = useRouter();
+  const tag = typeof router.query.tag === "string" ? router.query.tag : "";
+
+  if (!router.isReady) return <Layout><LoadingState label="player" /></Layout>;
+  if (tag.toUpperCase() === "CCDEMO") return <PlayerDashboard player={mockPlayer} />;
+  if (!isConvexConfigured) return <Layout><SetupState feature="player profiles" /></Layout>;
+  return <LivePlayer tag={tag} />;
+}
+
+function LivePlayer({ tag }: { tag: string }) {
+  const getPlayerBundle = useAction(playerBundleAction);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const query = useQuery({
+    queryKey: ["player", tag, refreshKey],
+    queryFn: async () => mapPlayerBundle(await getPlayerBundle({ tag, force: refreshKey > 0 })),
+    placeholderData: (previous) => previous,
+    retry: false
   });
 
-  if (!player) return null;
+  if (query.isLoading) return <Layout><LoadingState label="player" /></Layout>;
+  if (query.error) return <Layout><ErrorState message={errorMessage(query.error)} /></Layout>;
+  if (!query.data) return <Layout><ErrorState message="No player data was returned." /></Layout>;
+
+  return <PlayerDashboard player={query.data} isRefreshing={query.isFetching} onRefresh={() => setRefreshKey((value) => value + 1)} />;
+}
+
+function PlayerDashboard({ player, isRefreshing = false, onRefresh = () => undefined }: { player: Player; isRefreshing?: boolean; onRefresh?: () => void }) {
+  const [activeTab, setActiveTab] = useState<PlayerTab>("Statistics");
+
 
   return (
     <Layout>
@@ -20,9 +48,11 @@ export default function PlayerPage() {
       </Head>
       <div className="profile-page">
         <PlayerHero player={player} />
-        <PlayerTabs />
-        <PlayerStats player={player} />
-        <ProgressionChart />
+        <PlayerTabs active={activeTab} onChange={setActiveTab} />
+        {activeTab === "Statistics" ? <><PlayerStats player={player} onRefresh={onRefresh} isRefreshing={isRefreshing} /><ProgressionChart player={player} /></> : null}
+        {activeTab === "Battles" ? <BattleHistory battles={player.battles} /> : null}
+        {activeTab === "Decks" ? <DeckOverview cards={player.deck} /> : null}
+        {activeTab === "Cards" ? <CardCollection cards={player.cards} /> : null}
         <ChestList chests={player.chests} />
       </div>
     </Layout>

@@ -1,13 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/router";
+import { normalizeTag } from "@/lib/clash/tag";
 
 const navItems = [
-  { href: "/decks", label: "Cards" },
-  { href: "/", label: "Championship" },
-  { href: "/", label: "Tournaments" },
+  { href: "/#lookup", label: "Players" },
+  { href: "/#lookup", label: "Clans" },
   { href: "/decks", label: "Deck Builder" },
-  { href: "/clans/CCDEMO", label: "Top Lists" }
+  { href: "/players/CCDEMO", label: "Demo Profile" }
 ];
 
 export function Layout({ children, variant = "profile" }: { children: React.ReactNode; variant?: "home" | "profile" }) {
@@ -23,8 +25,7 @@ export function Layout({ children, variant = "profile" }: { children: React.Reac
               {item.label}
             </Link>
           ))}
-          <ChevronDown size={14} className="nav-caret" />
-          <Search size={30} className="nav-search" />
+          <Link href="/#lookup" aria-label="Search Clash Royale profiles"><Search size={30} className="nav-search" /></Link>
         </nav>
       </header>
       <main>{children}</main>
@@ -45,11 +46,11 @@ function SiteFooter() {
         <div className="footer-links">
           <Link href="/decks">Top Decks</Link>
           <Link href="/decks">Top Cards</Link>
-          <Link href="/players/CCDEMO">Top Players</Link>
-          <Link href="/clans/CCDEMO">Top Clans</Link>
-          <Link href="/">Tournaments</Link>
-          <Link href="/">Championship</Link>
-          <Link href="/decks">Cards</Link>
+          <Link href="/#lookup">Player Search</Link>
+          <Link href="/#lookup">Clan Search</Link>
+          <Link href="/players/CCDEMO">Demo Player</Link>
+          <Link href="/clans/CCDEMO">Demo Clan</Link>
+          <Link href="/decks">Card Library</Link>
         </div>
         <p>
           This content is not affiliated with, endorsed, sponsored, or specifically approved by
@@ -62,15 +63,34 @@ function SiteFooter() {
 }
 
 export function DemoSearch() {
+  const router = useRouter();
+  const [kind, setKind] = useState<"players" | "clans">("players");
+  const [tag, setTag] = useState("");
+  const [error, setError] = useState("");
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      const normalized = normalizeTag(tag);
+      setError("");
+      void router.push(`/${kind}/${normalized}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Enter a valid Clash Royale tag.");
+    }
+  }
+
   return (
-    <form className="search-box">
-      <button type="button" className="search-type">
-        Player Tag <ChevronDown size={13} />
-      </button>
-      <input aria-label="Player tag" placeholder="Enter Player Tag" defaultValue="" />
-      <Link href="/players/CCDEMO" className="search-submit" aria-label="Search player">
-        <Search size={27} />
-      </Link>
-    </form>
+    <div id="lookup" className="search-wrap">
+      <form className="search-box" onSubmit={submit} noValidate>
+        <label className="sr-only" htmlFor="search-kind">Profile type</label>
+        <select id="search-kind" className="search-type" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
+          <option value="players">Player Tag</option>
+          <option value="clans">Clan Tag</option>
+        </select>
+        <input aria-label={`${kind === "players" ? "Player" : "Clan"} tag`} placeholder="#PLAYER_TAG" value={tag} onChange={(event) => setTag(event.target.value)} />
+        <button type="submit" className="search-submit" aria-label={`Search ${kind}`}><Search size={27} /></button>
+      </form>
+      {error ? <p className="search-error" role="alert">{error}</p> : null}
+    </div>
   );
 }

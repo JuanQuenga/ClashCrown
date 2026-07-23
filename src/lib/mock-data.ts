@@ -1,4 +1,5 @@
 export type Card = {
+  id?: number;
   name: string;
   elixir: number;
   rarity: "Common" | "Rare" | "Epic" | "Legendary" | "Champion";
@@ -11,6 +12,8 @@ export type Battle = {
   result: "Win" | "Loss";
   crowns: [number, number];
   opponent: string;
+  opponentClan?: string;
+  opponentDeck?: Card[];
   trophyChange: number;
   deck: Card[];
 };
@@ -36,11 +39,15 @@ export type Player = {
   cards: Card[];
   chests: Chest[];
   battles: Battle[];
+  fetchedAt?: number;
 };
 
 export type ClanMember = {
+  tag?: string;
   name: string;
   role: string;
+  level?: number;
+  rank?: number;
   trophies: number;
   donations: number;
 };
@@ -53,8 +60,11 @@ export type Clan = {
   description: string;
   score: number;
   warTrophies: number;
+  requiredTrophies?: number;
+  type?: string;
   donations: number;
   members: ClanMember[];
+  fetchedAt?: number;
 };
 
 export type DemoDeck = {
