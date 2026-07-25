@@ -9,6 +9,22 @@ Clash Crown is a full Clash Royale companion website built with Next.js, TypeScr
 - Build an eight-card deck from the live card catalog and copy the official Clash Royale deck link.
 - Cache Clash Royale API responses in Convex, record player/clan progression snapshots, and serve stale data when the upstream API is temporarily unavailable.
 - Use `/players/CCDEMO` and `/clans/CCDEMO` without credentials for the built-in demo.
+- Crawl player battle logs on a Convex cron schedule and fold them into daily deck and card aggregates, so deck win rate and usage can eventually be served from real observations rather than guessed at.
+
+## Battle-log pipeline
+
+The official API exposes battles per player only, 25 at a time, so deck statistics have to be accumulated. Four crons in `convex/crons.ts` do that:
+
+| Job | Interval | What it does |
+| --- | --- | --- |
+| `discover` | 6h | Seeds the crawl queue from the global ladder and Path of Legends leaderboards. |
+| `crawl` | 2m | Fetches a batch of battle logs sequentially and folds each battle into per-day deck and card counters. |
+| `rollup` | 30m | Materialises the 1-day and 7-day deck leaderboards. |
+| `prune` | 6h | Drops aggregates past the 30-day retention window. |
+
+Battles are deduped on a side-independent fingerprint, so crawling both participants counts a battle once. Draft, mirror, and 2v2 modes are excluded because the deck is not the player's own.
+
+Visit `/beta` on the deployed site to watch queue depth, ingest counters, API failure rate, recent cron runs, and the early meta preview. The page is `noindex` and stays out of the nav.
 
 ## Local setup
 
@@ -34,5 +50,15 @@ pnpm typecheck
 ## Environment
 
 See `.env-example`. The Clash Royale token belongs in the Convex environment, never in a browser-exposed variable.
+
+The pipeline reads these optional Convex environment variables, so it can be tuned without a redeploy:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BETA_ADMIN_KEY` | unset | Required by the "queue a player" control on `/beta`. Without it the control is inert. |
+| `CLASH_CRAWL_BATCH` | `8` | Battle logs fetched per crawl tick. Batch size × tick rate is the API request rate. |
+| `CLASH_DISCOVER_LIMIT` | `200` | Leaderboard entries seeded per discovery run. |
+| `CLASH_RANKING_SIZE` | `100` | Decks kept per mode per window in the materialised leaderboard. |
+| `CLASH_MIN_DECK_USES` | `5` | Observations a deck needs before it is ranked at all. |
 
 This project is not affiliated with, endorsed, sponsored, or specifically approved by Supercell.

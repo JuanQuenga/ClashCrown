@@ -332,3 +332,65 @@ export type ClanSearchPayload = {
 export type TournamentsPayload = {
   tournaments: CachedPayload<ApiPaged<ApiTournament>>;
 };
+
+// --- Battle-log pipeline --------------------------------------------------
+// Shapes returned by the public queries in convex/meta.ts.
+
+/** A count read with a bounded `take`, so the UI can render "500+" honestly. */
+export type CountProbe = {
+  count: number;
+  capped: boolean;
+};
+
+export type PipelineRun = {
+  _id: string;
+  job: string;
+  startedAt: number;
+  finishedAt?: number;
+  ok: boolean;
+  note?: string;
+  counters?: Record<string, number>;
+};
+
+export type PipelineStatusPayload = {
+  now: number;
+  counters: Record<string, number>;
+  due: CountProbe;
+  decksToday: CountProbe;
+  battlesToday: number;
+  apiCalls: { lastHour: number; failures: number; capped: boolean };
+  lastRuns: PipelineRun[];
+  rankingsComputedAt: number | null;
+};
+
+export type RankedDeck = {
+  _id: string;
+  rank: number;
+  deckHash: string;
+  cardIds: number[];
+  evolutionIds: number[];
+  uses: number;
+  wins: number;
+  winRate: number;
+  usageRate: number;
+  computedAt: number;
+};
+
+export type TopDecksPayload = {
+  windowDays: number;
+  decks: RankedDeck[];
+};
+
+export type RankedCard = {
+  cardId: number;
+  uses: number;
+  wins: number;
+  winRate: number;
+  usageRate: number;
+};
+
+export type TopCardsPayload = {
+  windowDays: number;
+  decksObserved: number;
+  cards: RankedCard[];
+};

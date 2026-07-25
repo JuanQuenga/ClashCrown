@@ -7,11 +7,15 @@ import type {
   LeaderboardListPayload,
   LeaderboardPayload,
   LocationsPayload,
+  PipelineStatusPayload,
   PlayerBundlePayload,
   RankingKind,
   RankingsPayload,
+  TopCardsPayload,
+  TopDecksPayload,
   TournamentsPayload
 } from "@/lib/clash/types";
+import type { MetaMode } from "@/lib/clash/battles";
 
 export const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL?.trim() ?? "";
 export const isConvexConfigured = convexUrl.startsWith("https://");
@@ -71,6 +75,30 @@ export const searchTournamentsAction = makeFunctionReference<
   { name: string; limit?: number; force?: boolean },
   TournamentsPayload
 >("clashApi:searchTournaments");
+
+// --- Battle-log pipeline --------------------------------------------------
+
+export const pipelineStatusQuery = makeFunctionReference<"query", Record<string, never>, PipelineStatusPayload>(
+  "meta:pipelineStatus"
+);
+
+export const topDecksQuery = makeFunctionReference<
+  "query",
+  { mode: MetaMode; windowDays?: number; limit?: number },
+  TopDecksPayload
+>("meta:topDecks");
+
+export const topCardsQuery = makeFunctionReference<
+  "query",
+  { mode: MetaMode; windowDays?: number; limit?: number },
+  TopCardsPayload
+>("meta:topCards");
+
+export const seedTagMutation = makeFunctionReference<
+  "mutation",
+  { tag: string; key: string },
+  { ok: boolean; message: string }
+>("meta:seedTag");
 
 /** Matches GLOBAL_LOCATION_ID in convex/clashApi.ts. */
 export const GLOBAL_LOCATION_ID = 57000000;

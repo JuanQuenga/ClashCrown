@@ -16,6 +16,22 @@ export const cacheKind = v.union(
   v.literal("tournaments")
 );
 
+/** Mirrors META_MODES in src/lib/clash/battles.ts. */
+export const metaMode = v.union(
+  v.literal("ladder"),
+  v.literal("pathOfLegends"),
+  v.literal("challenge"),
+  v.literal("tournament"),
+  v.literal("clanWar")
+);
+
+export const crawlSource = v.union(
+  v.literal("ladder"),
+  v.literal("pathOfLegends"),
+  v.literal("clan"),
+  v.literal("manual")
+);
+
 export default defineSchema({
   apiCache: defineTable({
     key: v.string(),
@@ -41,5 +57,98 @@ export default defineSchema({
     status: v.number(),
     ok: v.boolean(),
     fetchedAt: v.number()
-  }).index("by_fetched_at", ["fetchedAt"])
+  }).index("by_fetched_at", ["fetchedAt"]),
+
+  // --- Battle-log collection pipeline -------------------------------------
+  // The official API only exposes battles per player, so deck statistics have
+  // to be built by polling many players' battle logs over time.
+
+  /** Player tags the crawler polls, leased through `nextDueAt`. */
+  crawlTargets: defineTable({
+    tag: v.string(),
+    source: crawlSource,
+    /** Lower crawls sooner; derived from ladder rank so the top of the ladder stays fresh. */
+    priority: v.number(),
+    nextDueAt: v.number(),
+    lastFetchedAt: v.optional(v.number()),
+    /** Newest battle already ingested for this tag, used to skip unchanged logs. */
+    lastBattleTime: v.optional(v.number()),
+    consecutiveFailures: v.number(),
+    disabled: v.boolean()
+  })
+    .index("by_tag", ["tag"])
+    .index("by_due", ["disabled", "nextDueAt"]),
+
+  /**
+   * Dedup ledger. A battle appears in both participants' logs, so we key on the
+   * battle rather than on one player's view of it. Pruned once battles age out
+   * of the API's own 25-battle window.
+   */
+  seenBattles: defineTable({
+    fingerprint: v.string(),
+    battleTime: v.number()
+  })
+    .index("by_fingerprint", ["fingerprint"])
+    .index("by_battle_time", ["battleTime"]),
+
+  /** Per-day deck aggregates, incremented at ingest so nothing has to be rescanned. */
+  deckStats: defineTable({
+    day: v.number(),
+    mode: metaMode,
+    deckHash: v.string(),
+    cardIds: v.array(v.number()),
+    evolutionIds: v.array(v.number()),
+    uses: v.number(),
+    wins: v.number(),
+    crowns: v.number()
+  })
+    .index("by_day_and_mode_and_deck", ["day", "mode", "deckHash"])
+    .index("by_day", ["day"]),
+
+  /** Per-day card aggregates. Small enough to sum directly in a query. */
+  cardStats: defineTable({
+    day: v.number(),
+    mode: metaMode,
+    cardId: v.number(),
+    uses: v.number(),
+    wins: v.number()
+  })
+    .index("by_day_and_mode_and_card", ["day", "mode", "cardId"])
+    .index("by_day", ["day"]),
+
+  /** Materialised deck leaderboard, recomputed by the rollup cron. */
+  deckRankings: defineTable({
+    windowDays: v.number(),
+    mode: metaMode,
+    rank: v.number(),
+    deckHash: v.string(),
+    cardIds: v.array(v.number()),
+    evolutionIds: v.array(v.number()),
+    uses: v.number(),
+    wins: v.number(),
+    winRate: v.number(),
+    usageRate: v.number(),
+    computedAt: v.number()
+  })
+    .index("by_window_and_mode_and_rank", ["windowDays", "mode", "rank"])
+    .index("by_window_and_mode", ["windowDays", "mode"]),
+
+  /** One row per cron execution, so the beta page can show what the pipeline is doing. */
+  pipelineRuns: defineTable({
+    job: v.string(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    ok: v.boolean(),
+    note: v.optional(v.string()),
+    counters: v.optional(v.record(v.string(), v.number()))
+  })
+    .index("by_started_at", ["startedAt"])
+    .index("by_job_and_started_at", ["job", "startedAt"]),
+
+  /** Denormalised counters; Convex has no count operator. */
+  pipelineCounters: defineTable({
+    name: v.string(),
+    value: v.number(),
+    updatedAt: v.number()
+  }).index("by_name", ["name"])
 });

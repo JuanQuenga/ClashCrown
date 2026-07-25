@@ -10,6 +10,10 @@
 
 import type * as cache from "../cache.js";
 import type * as clashApi from "../clashApi.js";
+import type * as clashFetch from "../clashFetch.js";
+import type * as crawler from "../crawler.js";
+import type * as crons from "../crons.js";
+import type * as meta from "../meta.js";
 
 import type {
   ApiFromModules,
@@ -20,6 +24,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   cache: typeof cache;
   clashApi: typeof clashApi;
+  clashFetch: typeof clashFetch;
+  crawler: typeof crawler;
+  crons: typeof crons;
+  meta: typeof meta;
 }>;
 
 /**

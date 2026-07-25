@@ -1837,3 +1837,65 @@ a:hover .entity-cell strong { color: var(--pink-bright); }
   .search-filters { grid-template-columns: 1fr; }
   .card-library { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* --- Beta pipeline dashboard --- */
+.beta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.beta-tile {
+  display: grid;
+  gap: 5px;
+  padding: 16px 18px;
+  border-radius: 7px;
+  border: 1px solid rgba(62, 88, 128, .2);
+  background: rgba(13, 43, 78, .86);
+}
+.beta-tile span { color: #cbd8ef; font: 11px Arial, sans-serif; text-transform: uppercase; letter-spacing: .05em; }
+.beta-tile strong { font-size: 22px; }
+.beta-tile small { color: #8ea2c4; font: 11px Arial, sans-serif; }
+
+.beta-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+.beta-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.beta-tab {
+  padding: 9px 16px;
+  border: 1px solid rgba(62, 88, 128, .34);
+  border-radius: 999px;
+  color: #cbd8ef;
+  background: rgba(8, 24, 44, .72);
+  font: 11px Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+.beta-tab:hover { border-color: rgba(238, 102, 239, .5); color: white; }
+.beta-tab-on { border-color: transparent; color: white; background: var(--pink-bright); }
+
+.beta-deck { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.beta-thumb { position: relative; display: inline-flex; }
+.beta-thumb img { width: 48px; height: 58px; object-fit: contain; }
+.beta-thumb .evo-flag { top: 2px; left: 2px; padding: 1px 4px; font-size: 6px; }
+
+.beta-playground { display: grid; gap: 20px; }
+.beta-playground > div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 14px 18px;
+  border-radius: 7px;
+  background: rgba(8, 24, 44, .72);
+}
+.beta-playground > div > span { color: #8ea2c4; font: 11px Arial, sans-serif; text-transform: uppercase; letter-spacing: .05em; }
+.beta-playground > div > div { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+
+.beta-admin { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 130px; gap: 14px; align-items: center; }
+.beta-admin .pink-button { justify-self: stretch; text-align: center; }
+.beta-admin .pink-button:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 680px) {
+  .beta-playground > div { grid-template-columns: 1fr; }
+  .beta-admin { grid-template-columns: 1fr; }
+}
