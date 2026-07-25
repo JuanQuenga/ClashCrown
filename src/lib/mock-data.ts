@@ -4,6 +4,14 @@ export type Card = {
   elixir: number;
   rarity: "Common" | "Rare" | "Epic" | "Legendary" | "Champion";
   image: string;
+  /** Player-specific fields; absent on the global catalog. */
+  level?: number;
+  maxLevel?: number;
+  starLevel?: number;
+  count?: number;
+  evolutionLevel?: number;
+  isEvolution?: boolean;
+  canEvolve?: boolean;
 };
 
 export type Battle = {
@@ -33,9 +41,14 @@ export type Player = {
   arena: string;
   arenaImage: string;
   clan: string;
+  clanTag?: string;
+  clanBadge?: string;
+  pathOfLegends?: { trophies: number; bestTrophies: number; rank: number | null };
   favoriteCard: Card;
   stats: Record<string, string>;
   deck: Card[];
+  /** Tower Troop equipped with the current deck. */
+  supportCards?: Card[];
   cards: Card[];
   chests: Chest[];
   battles: Battle[];
@@ -48,8 +61,12 @@ export type ClanMember = {
   role: string;
   level?: number;
   rank?: number;
+  previousRank?: number;
   trophies: number;
   donations: number;
+  donationsReceived?: number;
+  arena?: string;
+  lastSeen?: string;
 };
 
 export type Clan = {
@@ -57,11 +74,13 @@ export type Clan = {
   name: string;
   badge: string;
   warBadge: string;
+  warLeague?: string;
   description: string;
   score: number;
   warTrophies: number;
   requiredTrophies?: number;
   type?: string;
+  location?: string;
   donations: number;
   members: ClanMember[];
   fetchedAt?: number;

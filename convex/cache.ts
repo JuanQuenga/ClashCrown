@@ -1,15 +1,8 @@
-import { internalMutationGeneric, internalQueryGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
+import { internalMutation, internalQuery, query } from "./_generated/server";
+import { cacheKind } from "./schema";
 
-const cacheKind = v.union(
-  v.literal("player"),
-  v.literal("battles"),
-  v.literal("chests"),
-  v.literal("clan"),
-  v.literal("cards")
-);
-
-export const get = internalQueryGeneric({
+export const get = internalQuery({
   args: { key: v.string() },
   handler: async (ctx, args) => {
     return ctx.db
@@ -19,7 +12,7 @@ export const get = internalQueryGeneric({
   }
 });
 
-export const put = internalMutationGeneric({
+export const put = internalMutation({
   args: {
     key: v.string(),
     kind: cacheKind,
@@ -54,15 +47,25 @@ export const put = internalMutationGeneric({
     else await ctx.db.insert("apiCache", value);
 
     if (args.profile) {
-      await ctx.db.insert("profileHistory", {
-        ...args.profile,
-        recordedAt: args.fetchedAt
-      });
+      // Only record a snapshot when the tracked value actually moved, so the
+      // history table doesn't fill with duplicate rows on every cache refresh.
+      const latest = await ctx.db
+        .query("profileHistory")
+        .withIndex("by_profile", (query) => query.eq("kind", args.profile!.kind).eq("tag", args.profile!.tag))
+        .order("desc")
+        .first();
+
+      if (!latest || latest.value !== args.profile.value) {
+        await ctx.db.insert("profileHistory", {
+          ...args.profile,
+          recordedAt: args.fetchedAt
+        });
+      }
     }
   }
 });
 
-export const logFetch = internalMutationGeneric({
+export const logFetch = internalMutation({
   args: {
     endpoint: v.string(),
     status: v.number(),
@@ -74,16 +77,20 @@ export const logFetch = internalMutationGeneric({
   }
 });
 
-export const history = queryGeneric({
+export const history = query({
   args: {
     kind: v.union(v.literal("player"), v.literal("clan")),
     tag: v.string()
   },
   handler: async (ctx, args) => {
-    return ctx.db
+    // by_profile is [kind, tag, recordedAt], so this walks the index backwards
+    // instead of scanning the whole table the way the old .filter() did.
+    const rows = await ctx.db
       .query("profileHistory")
-      .filter((query) => query.and(query.eq(query.field("kind"), args.kind), query.eq(query.field("tag"), args.tag)))
+      .withIndex("by_profile", (query) => query.eq("kind", args.kind).eq("tag", args.tag))
       .order("desc")
-      .take(30);
+      .take(60);
+
+    return rows.reverse();
   }
 });

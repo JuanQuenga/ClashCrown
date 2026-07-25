@@ -1,11 +1,12 @@
 import type { Battle, Card, Chest, Clan, ClanMember, Player } from "@/lib/mock-data";
+import { arenaImage, badgeImage, cardImage, chestImage, warLeague, UNKNOWN_CARD_IMAGE } from "./assets";
+import { formatApiDate } from "./format";
 import type {
   ApiBattle,
   ApiCard,
   ApiCardList,
   ApiChestList,
   ApiClan,
-  ApiPlayer,
   CardsPayload,
   ClanBundlePayload,
   PlayerBundlePayload
@@ -15,7 +16,7 @@ const FALLBACK_CARD: Card = {
   name: "Unknown Card",
   elixir: 0,
   rarity: "Common",
-  image: "/images/cards/unknown.png"
+  image: UNKNOWN_CARD_IMAGE
 };
 
 const rarityMap: Record<string, Card["rarity"]> = {
@@ -26,47 +27,30 @@ const rarityMap: Record<string, Card["rarity"]> = {
   champion: "Champion"
 };
 
-const chestImages: Record<string, string> = {
-  "silver chest": "silverchest",
-  "golden chest": "goldenchest",
-  "giant chest": "giantchest",
-  "epic chest": "epicchest",
-  "legendary chest": "legendarychest",
-  "mega lightning chest": "megalightningchest",
-  "royal wild chest": "royalwildchest",
-  "gold crate": "goldcrate",
-  "plentiful gold crate": "plentifulgoldcrate",
-  "overflowing gold crate": "overflowinggoldcrate"
-};
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replaceAll(".", "")
-    .replaceAll("'", "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 export function mapCard(card?: ApiCard): Card {
   if (!card?.name) return FALLBACK_CARD;
+
+  const evolutionLevel = card.evolutionLevel ?? 0;
 
   return {
     id: card.id,
     name: card.name,
     elixir: card.elixirCost ?? 0,
     rarity: rarityMap[card.rarity?.toLowerCase() ?? ""] ?? "Common",
-    image: `/images/cards/${slugify(card.name)}.png`
+    image: cardImage(card),
+    level: card.level,
+    maxLevel: card.maxLevel,
+    starLevel: card.starLevel,
+    count: card.count,
+    evolutionLevel,
+    isEvolution: evolutionLevel > 0,
+    canEvolve: (card.maxEvolutionLevel ?? 0) > 0
   };
 }
 
 function formatBattleDate(value?: string) {
   if (!value) return "Recent battle";
-  const match = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
-  if (!match) return value;
-  const [, year, month, day, hour, minute, second] = match;
-  const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  return formatApiDate(value, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function mapBattle(battle: ApiBattle): Battle {
@@ -91,8 +75,7 @@ function mapBattle(battle: ApiBattle): Battle {
 function mapChestList(payload: ApiChestList): Chest[] {
   return (payload.items ?? []).map((chest) => {
     const name = chest.name ?? "Chest";
-    const image = chestImages[name.toLowerCase()] ?? "woodenchest";
-    return { name, index: chest.index ?? 0, image: `/images/chests/${image}.png` };
+    return { name, index: chest.index ?? 0, image: chestImage(name) };
   });
 }
 
@@ -102,6 +85,8 @@ export function mapPlayerBundle(payload: PlayerBundlePayload): Player {
   const allCards = source.cards?.map(mapCard) ?? currentDeck;
   const favoriteCard = mapCard(source.currentFavouriteCard ?? source.currentDeck?.[0]);
 
+  const pathOfLegends = source.currentPathOfLegendSeasonResult;
+
   return {
     tag: source.tag.replace(/^#/, ""),
     name: source.name,
@@ -109,8 +94,14 @@ export function mapPlayerBundle(payload: PlayerBundlePayload): Player {
     trophies: source.trophies ?? 0,
     bestTrophies: source.bestTrophies ?? source.trophies ?? 0,
     arena: source.arena?.name ?? "Unknown Arena",
-    arenaImage: "/images/arenas/league9.png",
+    arenaImage: arenaImage(source.arena),
     clan: source.clan?.name ?? "No clan",
+    clanTag: source.clan?.tag?.replace(/^#/, ""),
+    clanBadge: source.clan ? badgeImage(source.clan.badgeId, source.clan.badgeUrls) : undefined,
+    pathOfLegends: pathOfLegends
+      ? { trophies: pathOfLegends.trophies ?? 0, bestTrophies: pathOfLegends.bestTrophies ?? 0, rank: pathOfLegends.rank ?? null }
+      : undefined,
+    supportCards: source.currentDeckSupportCards?.map(mapCard) ?? [],
     favoriteCard,
     stats: {
       "Last known trophies": (source.trophies ?? 0).toLocaleString(),
@@ -145,23 +136,32 @@ function mapClanMember(member: NonNullable<ApiClan["memberList"]>[number]): Clan
     role: roleLabel(member.role),
     level: member.expLevel,
     rank: member.clanRank,
+    previousRank: member.previousClanRank,
     trophies: member.trophies ?? 0,
-    donations: member.donations ?? 0
+    donations: member.donations ?? 0,
+    donationsReceived: member.donationsReceived ?? 0,
+    arena: member.arena?.name,
+    lastSeen: member.lastSeen
   };
 }
 
 export function mapClanBundle(payload: ClanBundlePayload): Clan {
   const source = payload.clan.data;
+  const warTrophies = source.clanWarTrophies ?? 0;
+  const league = warLeague(warTrophies);
+
   return {
     tag: source.tag.replace(/^#/, ""),
     name: source.name,
-    badge: source.badgeId ? `/images/clan-badges/${source.badgeId}.png` : "/images/clan-badges/16000004.png",
-    warBadge: "/images/war/gold-1.png",
+    badge: badgeImage(source.badgeId, source.badgeUrls),
+    warBadge: league.image,
+    warLeague: league.label,
     description: source.description ?? "No clan description provided.",
     score: source.clanScore ?? 0,
-    warTrophies: source.clanWarTrophies ?? 0,
+    warTrophies,
     requiredTrophies: source.requiredTrophies ?? 0,
     type: roleLabel(source.type),
+    location: source.location?.name,
     donations: source.donationsPerWeek ?? 0,
     members: (source.memberList ?? []).map(mapClanMember),
     fetchedAt: payload.clan.fetchedAt
@@ -172,6 +172,12 @@ export function mapCardsPayload(payload: CardsPayload): Card[] {
   return mapCardList(payload.cards.data);
 }
 
+/** Playable cards only. Tower Troops live in a separate list on the same response. */
 export function mapCardList(payload: ApiCardList): Card[] {
   return (payload.items ?? []).map(mapCard);
+}
+
+/** Tower Troops (Tower Princess, Cannoneer, Dagger Duchess, ...). */
+export function mapSupportCardList(payload: ApiCardList): Card[] {
+  return (payload.supportItems ?? []).map(mapCard);
 }

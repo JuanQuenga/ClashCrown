@@ -1,5 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
 import { RefreshCcw } from "lucide-react";
+import { cardSlug } from "@/lib/clash/cards";
 import type { Battle, Card, Chest, Player } from "@/lib/mock-data";
 
 const tabItems = [
@@ -9,15 +11,16 @@ const tabItems = [
   { label: "Cards", icon: "/images/icons/book-cards.png" }
 ];
 
+/** Placeholder is the arena the player is actually in, filled in per render. */
 const statIcons = [
   "/images/icons/trophy.png",
   "/images/icons/trophy.png",
   "/images/icons/cardsq.png",
   "/images/icons/ranklegendary.png",
-  "/images/clan-badges/16000004.png",
-  "/images/arenas/league9.png",
-  "/images/arenas/league9.png",
-  "/images/arenas/league9.png",
+  "arena",
+  "arena",
+  "arena",
+  "arena",
   "/images/icons/sword.png",
   "/images/icons/sword.png",
   "/images/icons/crown-2d.png",
@@ -27,10 +30,29 @@ const statIcons = [
 export function PlayerHero({ player }: { player: Player }) {
   return (
     <section className="profile-hero">
-      <Image src="/images/clan-badges/16000004.png" alt="" width={74} height={92} priority />
-      <span>{player.clan} &gt;</span>
+      <Image src={player.clanBadge ?? "/images/clan-badges/16000004.png"} alt="" width={74} height={92} priority />
+      <span>
+        {player.clanTag ? <Link href={`/clans/${player.clanTag.replace(/^#/, "")}`}>{player.clan} &gt;</Link> : `${player.clan} >`}
+      </span>
       <h1>{player.name}<span className="hero-level" aria-label={`Level ${player.level}`}>{player.level}</span></h1>
       <strong>#{player.tag}</strong>
+      <div className="card-detail-meta hero-chips">
+        <span className="status-chip">
+          <Image src={player.arenaImage} alt="" width={20} height={20} />
+          {player.arena}
+        </span>
+        {player.pathOfLegends ? (
+          <span className="status-chip">
+            Path of Legends · {player.pathOfLegends.trophies.toLocaleString()}
+            {player.pathOfLegends.rank ? ` · #${player.pathOfLegends.rank.toLocaleString()}` : ""}
+          </span>
+        ) : null}
+        {player.clanTag ? (
+          <Link className="status-chip" href={`/clans/${player.clanTag.replace(/^#/, "")}/war`}>
+            Clan war
+          </Link>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -65,7 +87,7 @@ export function PlayerStats({ player, onRefresh, isRefreshing }: { player: Playe
       <div className="stat-matrix">
         {rows.map(([label, value], index) => (
           <div key={label} className="stat-cell">
-            <Image src={statIcons[index] ?? "/images/icons/trophy.png"} alt="" width={46} height={46} />
+            <Image src={statIcon(statIcons[index], player.arenaImage)} alt="" width={46} height={46} />
             <div>
               <strong>{value}</strong>
               <span>{label}</span>
@@ -75,6 +97,11 @@ export function PlayerStats({ player, onRefresh, isRefreshing }: { player: Playe
       </div>
     </section>
   );
+}
+
+function statIcon(icon: string | undefined, arenaImage: string) {
+  if (!icon) return "/images/icons/trophy.png";
+  return icon === "arena" ? arenaImage : icon;
 }
 
 export function BattleHistory({ battles }: { battles: Battle[] }) {
@@ -97,15 +124,24 @@ export function BattleHistory({ battles }: { battles: Battle[] }) {
   );
 }
 
-export function DeckOverview({ cards }: { cards: Card[] }) {
+export function DeckOverview({ cards, supportCards = [] }: { cards: Card[]; supportCards?: Card[] }) {
   if (!cards.length) return <EmptyPanel title="No current deck" copy="This player's current deck is private or unavailable." />;
   const average = cards.reduce((sum, card) => sum + card.elixir, 0) / cards.length;
+  const cycle = [...cards].map((card) => card.elixir).filter((cost) => cost > 0).sort((a, b) => a - b).slice(0, 4).reduce((total, cost) => total + cost, 0);
   return (
     <section className="profile-section deck-overview">
-      <div className="section-heading compact-heading"><span className="filter-button static">{average.toFixed(1)} elixir</span><h2>Current Deck</h2><span /></div>
+      <div className="section-heading compact-heading"><span className="filter-button static">{average.toFixed(1)} elixir · {cycle} cycle</span><h2>Current Deck</h2><span /></div>
       <div className="collection-grid deck-collection">
         {cards.map((card, index) => <CollectionCard key={`${card.name}-${index}`} card={card} />)}
       </div>
+      {supportCards.length ? (
+        <>
+          <div className="section-heading compact-heading"><span /><h2>Tower Troop</h2><span /></div>
+          <div className="collection-grid deck-collection">
+            {supportCards.map((card, index) => <CollectionCard key={`${card.name}-${index}`} card={card} />)}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -128,11 +164,13 @@ function MiniDeck({ cards }: { cards: Card[] }) {
 
 function CollectionCard({ card }: { card: Card }) {
   return (
-    <article className="collection-card">
+    <Link href={`/cards/${cardSlug(card.name)}`} className="collection-card">
+      {card.isEvolution ? <span className="evo-flag">EVO</span> : null}
+      {card.level ? <i className="card-level">{card.level}{card.maxLevel ? `/${card.maxLevel}` : ""}</i> : null}
       <Image src={card.image} alt={card.name} width={82} height={100} />
       <strong>{card.name}</strong>
       <span>{card.rarity} · {card.elixir || "?"} elixir</span>
-    </article>
+    </Link>
   );
 }
 

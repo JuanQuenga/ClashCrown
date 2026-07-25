@@ -51,7 +51,7 @@ function PlayerDashboard({ player, isRefreshing = false, onRefresh = () => undef
         <PlayerTabs active={activeTab} onChange={setActiveTab} />
         {activeTab === "Statistics" ? <><PlayerStats player={player} onRefresh={onRefresh} isRefreshing={isRefreshing} /><ProgressionChart player={player} /></> : null}
         {activeTab === "Battles" ? <BattleHistory battles={player.battles} /> : null}
-        {activeTab === "Decks" ? <DeckOverview cards={player.deck} /> : null}
+        {activeTab === "Decks" ? <DeckOverview cards={player.deck} supportCards={player.supportCards} /> : null}
         {activeTab === "Cards" ? <CardCollection cards={player.cards} /> : null}
         <ChestList chests={player.chests} />
       </div>

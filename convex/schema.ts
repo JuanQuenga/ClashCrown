@@ -1,10 +1,25 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+export const cacheKind = v.union(
+  v.literal("player"),
+  v.literal("battles"),
+  v.literal("chests"),
+  v.literal("clan"),
+  v.literal("cards"),
+  v.literal("war"),
+  v.literal("locations"),
+  v.literal("rankings"),
+  v.literal("leaderboards"),
+  v.literal("leaderboard"),
+  v.literal("clanSearch"),
+  v.literal("tournaments")
+);
+
 export default defineSchema({
   apiCache: defineTable({
     key: v.string(),
-    kind: v.union(v.literal("player"), v.literal("battles"), v.literal("chests"), v.literal("clan"), v.literal("cards")),
+    kind: cacheKind,
     payload: v.string(),
     fetchedAt: v.number(),
     expiresAt: v.number(),

@@ -6,10 +6,11 @@ import { useRouter } from "next/router";
 import { normalizeTag } from "@/lib/clash/tag";
 
 const navItems = [
-  { href: "/#lookup", label: "Players" },
-  { href: "/#lookup", label: "Clans" },
+  { href: "/leaderboards", label: "Leaderboards" },
+  { href: "/cards", label: "Cards" },
   { href: "/decks", label: "Deck Builder" },
-  { href: "/players/CCDEMO", label: "Demo Profile" }
+  { href: "/clans/search", label: "Clans" },
+  { href: "/tournaments", label: "Tournaments" }
 ];
 
 export function Layout({ children, variant = "profile" }: { children: React.ReactNode; variant?: "home" | "profile" }) {
@@ -44,19 +45,22 @@ function SiteFooter() {
           <span>Discord</span>
         </div>
         <div className="footer-links">
-          <Link href="/decks">Top Decks</Link>
-          <Link href="/decks">Top Cards</Link>
-          <Link href="/#lookup">Player Search</Link>
-          <Link href="/#lookup">Clan Search</Link>
-          <Link href="/players/CCDEMO">Demo Player</Link>
-          <Link href="/clans/CCDEMO">Demo Clan</Link>
-          <Link href="/decks">Card Library</Link>
+          <Link href="/leaderboards">Leaderboards</Link>
+          <Link href="/cards">Card Library</Link>
+          <Link href="/decks">Deck Builder</Link>
+          <Link href="/clans/search">Clan Search</Link>
+          <Link href="/tournaments">Tournaments</Link>
+          <Link href="/#lookup">Player Lookup</Link>
         </div>
         <p>
-          This content is not affiliated with, endorsed, sponsored, or specifically approved by
-          Supercell and Supercell is not responsible for it.
+          This material is unofficial and is not endorsed by Supercell. For more information see Supercell&rsquo;s Fan
+          Content Policy:{" "}
+          <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer noopener">
+            supercell.com/fan-content-policy
+          </a>
+          .
         </p>
-        <p>© 2017 ClashCrown. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} Clash Crown.</p>
       </div>
     </footer>
   );

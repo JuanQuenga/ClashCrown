@@ -78,7 +78,7 @@ export default function HomePage() {
         </div>
         <div className="command-stats">
           <Metric icon={<Trophy size={19} />} value={demoPlayer.trophies.toLocaleString()} label="live trophies" />
-          <Metric icon={<Crown size={19} />} value={selectedDeck.winRate.toFixed(1) + "%"} label="deck win rate" />
+          <Metric icon={<Crown size={19} />} value={demoPlayer.bestTrophies.toLocaleString()} label="best trophies" />
           <Metric icon={<Swords size={19} />} value={selectedBattle.result} label="last battle" />
           <button type="button" onClick={() => playerQuery.refetch()} className={playerQuery.isFetching ? "is-fetching" : ""}>
             <RefreshCcw size={17} />Refresh snapshot
@@ -111,8 +111,8 @@ export default function HomePage() {
 
       <section className="deck-day page-band">
         <div className="section-title-row">
-          <h2>Deck of the day</h2>
-          <Link href="/decks" className="pink-button">See all decks</Link>
+          <h2>Deck of the day <SampleBadge /></h2>
+          <Link href="/decks" className="pink-button">Open the deck builder</Link>
         </div>
         <div className="archetype-tabs" aria-label="Deck archetype filters">
           {["All", "Control", "Cycle", "Beatdown", "Bait"].map((item) => (
@@ -154,8 +154,8 @@ export default function HomePage() {
 
       <section className="event-lab page-band">
         <div className="section-title-row">
-          <h2>Event Lab</h2>
-          <Link href="/clans/CCDEMO" className="pink-button">Clan board</Link>
+          <h2>Event Lab <SampleBadge /></h2>
+          <Link href="/tournaments" className="pink-button">Live tournaments</Link>
         </div>
         <div className="event-grid">
           {demoEvents.map((event) => (
@@ -190,21 +190,29 @@ export default function HomePage() {
 
       <section className="popular page-band">
         <div className="section-title-row">
-          <h2>Popular Cards</h2>
-          <Link href="/decks" className="pink-button">See all cards</Link>
+          <h2>Popular Cards <SampleBadge /></h2>
+          <Link href="/cards" className="pink-button">Browse the card library</Link>
         </div>
         <div className="popular-grid">
-          <SparkChart color="pink" label="Winrate" value="43.21%" delta="-3.23%" />
+          <SparkChart color="pink" label="Winrate" value="—" delta="sample" />
           <div className="popular-card-center">
             <Image src="/images/cards/three-musketeers.png" alt="Three Musketeers" width={96} height={120} />
             <strong>Three Musketeers</strong>
           </div>
-          <SparkChart color="blue" label="Usage" value="73.21%" delta="+3.23%" />
+          <SparkChart color="blue" label="Usage" value="—" delta="sample" />
         </div>
-        <Pager />
+        <p className="table-note">
+          Win-rate and usage statistics need an aggregated battle history. The official API only exposes battles per
+          player, so Clash Crown does not publish numbers it cannot source.
+        </p>
       </section>
     </Layout>
   );
+}
+
+/** Marks a section that renders curated sample data rather than live API results. */
+function SampleBadge() {
+  return <span className="sample-badge">Sample</span>;
 }
 
 function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {

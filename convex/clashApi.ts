@@ -9,14 +9,42 @@ import type {
   ApiCardList,
   ApiChestList,
   ApiClan,
+  ApiClanRanking,
+  ApiCurrentRiverRace,
+  ApiLeaderboard,
+  ApiLocation,
+  ApiPaged,
   ApiPlayer,
+  ApiPlayerRanking,
+  ApiRiverRaceLog,
+  ApiTournament,
   CachedPayload,
   CardsPayload,
   ClanBundlePayload,
-  PlayerBundlePayload
+  ClanSearchPayload,
+  ClanWarPayload,
+  LeaderboardListPayload,
+  LeaderboardPayload,
+  LocationsPayload,
+  PlayerBundlePayload,
+  RankingKind,
+  RankingsPayload,
+  TournamentsPayload
 } from "../src/lib/clash/types";
 
-type CacheKind = "player" | "battles" | "chests" | "clan" | "cards";
+type CacheKind =
+  | "player"
+  | "battles"
+  | "chests"
+  | "clan"
+  | "cards"
+  | "war"
+  | "locations"
+  | "rankings"
+  | "leaderboards"
+  | "leaderboard"
+  | "clanSearch"
+  | "tournaments";
 
 type CacheDocument = {
   key: string;
@@ -34,6 +62,13 @@ type ApiErrorBody = {
 
 const cacheApi = anyApi.cache;
 type ActionCtx = GenericActionCtx<GenericDataModel>;
+
+/**
+ * "International" in the /locations list — the pseudo-location used for global
+ * rankings. Clients should prefer the id resolved from /locations and only fall
+ * back to this constant.
+ */
+export const GLOBAL_LOCATION_ID = 57000000;
 
 function normalizeActionTag(input: string) {
   try {
@@ -240,5 +275,226 @@ export const getCards = actionGeneric({
       if (cached) return { cards: cachedPayload<ApiCardList>(cached, true) };
       throw error;
     }
+  }
+});
+
+/**
+ * Generic read-through cache for endpoints that take no tag and return a list.
+ * Falls back to stale data whenever the upstream call fails, matching the
+ * behaviour of the player/clan bundles.
+ */
+async function cachedFetch<T>(
+  ctx: ActionCtx,
+  options: { key: string; kind: CacheKind; endpoint: string; force?: boolean; ttlMs?: number }
+): Promise<CachedPayload<T>> {
+  const cached = (await ctx.runQuery(cacheApi.get, { key: options.key })) as CacheDocument | null;
+
+  if (cached && cached.expiresAt > Date.now() && !options.force) {
+    return cachedPayload<T>(cached);
+  }
+
+  try {
+    const data = await fetchClash<T>(ctx, options.endpoint);
+    const fetchedAt = Date.now();
+    await ctx.runMutation(cacheApi.put, {
+      key: options.key,
+      kind: options.kind,
+      payload: JSON.stringify(data),
+      fetchedAt,
+      expiresAt: fetchedAt + (options.ttlMs ?? cacheTtlMs())
+    });
+    return { data, fetchedAt, stale: false };
+  } catch (error) {
+    if (cached) return cachedPayload<T>(cached, true);
+    throw error;
+  }
+}
+
+/** Clan Wars 2. Both endpoints 404 for clans that have never entered a river race. */
+export const getClanWar = actionGeneric({
+  args: { tag: v.string(), force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<ClanWarPayload> => {
+    const tag = normalizeActionTag(args.tag);
+    const encoded = tagPath(tag);
+
+    // A clan with no war history is a normal state, not an error, so each half
+    // degrades to null independently rather than failing the whole page.
+    const [currentRace, raceLog] = await Promise.all([
+      cachedFetch<ApiCurrentRiverRace>(ctx, {
+        key: `war:current:${tag}`,
+        kind: "war",
+        endpoint: `/clans/${encoded}/currentriverrace`,
+        force: args.force
+      }).catch(() => null),
+      cachedFetch<ApiRiverRaceLog>(ctx, {
+        key: `war:log:${tag}`,
+        kind: "war",
+        endpoint: `/clans/${encoded}/riverracelog`,
+        force: args.force
+      }).catch(() => null)
+    ]);
+
+    const empty = <T,>(): CachedPayload<T | null> => ({ data: null, fetchedAt: Date.now(), stale: false });
+
+    return {
+      currentRace: currentRace ?? empty<ApiCurrentRiverRace>(),
+      raceLog: raceLog ?? empty<ApiRiverRaceLog>()
+    };
+  }
+});
+
+/** Countries and regions used to scope every ranking. Changes rarely, so cache for a day. */
+export const getLocations = actionGeneric({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<LocationsPayload> => ({
+    locations: await cachedFetch<ApiPaged<ApiLocation>>(ctx, {
+      key: "locations:all",
+      kind: "locations",
+      endpoint: "/locations?limit=300",
+      force: args.force,
+      ttlMs: 24 * 60 * 60 * 1000
+    })
+  })
+});
+
+const rankingKind = v.union(v.literal("players"), v.literal("clans"), v.literal("clanwars"));
+
+/** Trophy-ladder rankings, scoped to a location. Location 57000006 is "Global". */
+export const getRankings = actionGeneric({
+  args: {
+    kind: rankingKind,
+    locationId: v.optional(v.number()),
+    limit: v.optional(v.number()),
+    force: v.optional(v.boolean())
+  },
+  handler: async (ctx, args): Promise<RankingsPayload> => {
+    const locationId = args.locationId ?? GLOBAL_LOCATION_ID;
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 1000);
+    const kind = args.kind as RankingKind;
+
+    return {
+      kind,
+      locationId,
+      rankings: await cachedFetch<ApiPaged<ApiPlayerRanking | ApiClanRanking>>(ctx, {
+        key: `rankings:${kind}:${locationId}:${limit}`,
+        kind: "rankings",
+        endpoint: `/locations/${locationId}/rankings/${kind}?limit=${limit}`,
+        force: args.force
+      })
+    };
+  }
+});
+
+/** Path of Legends seasons. Each entry's id feeds getLeaderboard below. */
+export const getLeaderboards = actionGeneric({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<LeaderboardListPayload> => ({
+    leaderboards: await cachedFetch<ApiPaged<ApiLeaderboard>>(ctx, {
+      key: "leaderboards:all",
+      kind: "leaderboards",
+      endpoint: "/leaderboards",
+      force: args.force,
+      ttlMs: 6 * 60 * 60 * 1000
+    })
+  })
+});
+
+export const getLeaderboard = actionGeneric({
+  args: { leaderboardId: v.number(), limit: v.optional(v.number()), force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<LeaderboardPayload> => {
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 1000);
+    return {
+      leaderboard: await cachedFetch<ApiPaged<ApiPlayerRanking>>(ctx, {
+        key: `leaderboard:${args.leaderboardId}:${limit}`,
+        kind: "leaderboard",
+        endpoint: `/leaderboard/${args.leaderboardId}?limit=${limit}`,
+        force: args.force
+      })
+    };
+  }
+});
+
+/**
+ * Clan search. The official API has no equivalent for players — player lookup
+ * is exact-tag only — so the UI must not offer player search by name.
+ */
+export const searchClans = actionGeneric({
+  args: {
+    name: v.optional(v.string()),
+    locationId: v.optional(v.number()),
+    minMembers: v.optional(v.number()),
+    maxMembers: v.optional(v.number()),
+    minScore: v.optional(v.number()),
+    limit: v.optional(v.number()),
+    force: v.optional(v.boolean())
+  },
+  handler: async (ctx, args): Promise<ClanSearchPayload> => {
+    const name = args.name?.trim() ?? "";
+    if (name.length > 0 && name.length < 3) {
+      throw new ConvexError({ code: "SEARCH_TOO_SHORT", message: "Enter at least three characters to search clans." });
+    }
+
+    const params = new URLSearchParams();
+    if (name) params.set("name", name);
+    if (args.locationId) params.set("locationId", String(args.locationId));
+    if (args.minMembers) params.set("minMembers", String(args.minMembers));
+    if (args.maxMembers) params.set("maxMembers", String(args.maxMembers));
+    if (args.minScore) params.set("minScore", String(args.minScore));
+    params.set("limit", String(Math.min(Math.max(args.limit ?? 30, 1), 100)));
+
+    if (!name && !args.locationId && !args.minMembers && !args.maxMembers && !args.minScore) {
+      throw new ConvexError({
+        code: "SEARCH_EMPTY",
+        message: "Add a clan name or at least one filter to search."
+      });
+    }
+
+    return {
+      results: await cachedFetch<ApiPaged<ApiClan>>(ctx, {
+        key: `clanSearch:${params.toString()}`,
+        kind: "clanSearch",
+        endpoint: `/clans?${params.toString()}`,
+        force: args.force,
+        ttlMs: 5 * 60 * 1000
+      })
+    };
+  }
+});
+
+/** Supercell-run Global Tournaments (roughly two per month). */
+export const getGlobalTournaments = actionGeneric({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<TournamentsPayload> => ({
+    tournaments: await cachedFetch<ApiPaged<ApiTournament>>(ctx, {
+      key: "tournaments:global",
+      kind: "tournaments",
+      endpoint: "/globaltournaments",
+      force: args.force,
+      ttlMs: 30 * 60 * 1000
+    })
+  })
+});
+
+/** Open community tournaments, searched by name. */
+export const searchTournaments = actionGeneric({
+  args: { name: v.string(), limit: v.optional(v.number()), force: v.optional(v.boolean()) },
+  handler: async (ctx, args): Promise<TournamentsPayload> => {
+    const name = args.name.trim();
+    if (name.length < 3) {
+      throw new ConvexError({
+        code: "SEARCH_TOO_SHORT",
+        message: "Enter at least three characters to search tournaments."
+      });
+    }
+    const limit = Math.min(Math.max(args.limit ?? 30, 1), 100);
+    return {
+      tournaments: await cachedFetch<ApiPaged<ApiTournament>>(ctx, {
+        key: `tournaments:search:${name.toLowerCase()}:${limit}`,
+        kind: "tournaments",
+        endpoint: `/tournaments?name=${encodeURIComponent(name)}&limit=${limit}`,
+        force: args.force,
+        ttlMs: 5 * 60 * 1000
+      })
+    };
   }
 });

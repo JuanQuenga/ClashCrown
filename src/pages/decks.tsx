@@ -1,13 +1,22 @@
 import Head from "next/head";
 import Image from "next/image";
 import { Check, Copy, LoaderCircle, RefreshCcw, Search, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import { useAction } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
 import { cards as localCards, type Card } from "@/lib/mock-data";
 import { mapCardsPayload } from "@/lib/clash/mappers";
+import { averageElixir, copyDeckLink, fourCardCycle } from "@/lib/clash/assets";
+import { cardSlug } from "@/lib/clash/cards";
 import { cardsAction, errorMessage, isConvexConfigured } from "@/lib/convex";
+
+/** `/decks?include=<card-slug>` seeds the builder with that card, linked from card detail pages. */
+function useIncludedSlug() {
+  const router = useRouter();
+  return typeof router.query.include === "string" ? router.query.include : undefined;
+}
 
 export default function DecksPage() {
   return isConvexConfigured ? <LiveDeckBuilder /> : <DeckBuilder cards={localCards} source="Local catalog" />;
@@ -35,16 +44,29 @@ function LiveDeckBuilder() {
 }
 
 function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards: Card[]; source: string; onRefresh?: () => void; isRefreshing?: boolean }) {
+  const include = useIncludedSlug();
   const [selected, setSelected] = useState<Card[]>(() => cards.slice(0, 8));
+  const [seeded, setSeeded] = useState(false);
   const [search, setSearch] = useState("");
   const [rarity, setRarity] = useState("All");
   const [notice, setNotice] = useState("");
+
+  // The query string only resolves after hydration, so seed once the slug is known.
+  useEffect(() => {
+    if (seeded || !include) return;
+    const card = cards.find((item) => cardSlug(item.name) === include);
+    if (!card) return;
+    setSeeded(true);
+    setSelected([card]);
+  }, [cards, include, seeded]);
 
   const filteredCards = useMemo(() => cards.filter((card) => {
     const matchesSearch = card.name.toLowerCase().includes(search.trim().toLowerCase());
     return matchesSearch && (rarity === "All" || card.rarity === rarity);
   }), [cards, rarity, search]);
-  const averageElixir = selected.length ? selected.reduce((total, card) => total + card.elixir, 0) / selected.length : 0;
+  const costs = useMemo(() => selected.map((card) => ({ elixirCost: card.elixir })), [selected]);
+  const average = averageElixir(costs);
+  const cycle = fourCardCycle(costs);
 
   function toggleCard(card: Card) {
     const exists = selected.some((item) => item.name === card.name);
@@ -67,12 +89,11 @@ function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards
       return;
     }
     const ids = selected.map((card) => card.id).filter((id): id is number => typeof id === "number");
-    const value = ids.length === 8
-      ? `https://link.clashroyale.com/en/?clashroyale://copyDeck?deck=${ids.join(";")}`
-      : selected.map((card) => card.name).join(", ");
+    const link = copyDeckLink(ids);
+    const value = link ?? selected.map((card) => card.name).join(", ");
     try {
       await navigator.clipboard.writeText(value);
-      setNotice(ids.length === 8 ? "Official Clash Royale deck link copied." : "Deck list copied.");
+      setNotice(link ? "Official Clash Royale deck link copied." : "Deck list copied.");
     } catch {
       setNotice("Copying was blocked by your browser. Try again from a secure page.");
     }
@@ -91,7 +112,8 @@ function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards
         <section className="builder-workspace profile-section">
           <div className="builder-summary">
             <div><span>Cards</span><strong>{selected.length}/8</strong></div>
-            <div><span>Average elixir</span><strong>{averageElixir.toFixed(1)}</strong></div>
+            <div><span>Average elixir</span><strong>{average.toFixed(1)}</strong></div>
+            <div><span>4-card cycle</span><strong>{cycle}</strong></div>
             <button type="button" onClick={() => setSelected([])}><Trash2 size={17} />Clear</button>
             <button type="button" className="pink-button" onClick={copyDeck}><Copy size={17} />Copy deck</button>
           </div>

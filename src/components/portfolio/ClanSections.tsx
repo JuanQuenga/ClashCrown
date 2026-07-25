@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { RefreshCcw, User } from "lucide-react";
+import { RefreshCcw, Swords, User } from "lucide-react";
+import { RankCell } from "@/components/portfolio/DataTable";
 import type { Clan } from "@/lib/mock-data";
 
 export function ClanProfile({ clan }: { clan: Clan }) {
@@ -8,13 +9,20 @@ export function ClanProfile({ clan }: { clan: Clan }) {
     <section className="clan-hero">
       <Image src={clan.badge} alt="" width={74} height={92} priority />
       <h1>{clan.name}</h1>
-      <strong>#{clan.tag} <span>TYPE: {(clan.type ?? "Unknown").toUpperCase()}</span></strong>
+      <strong>
+        #{clan.tag} <span>TYPE: {(clan.type ?? "Unknown").toUpperCase()}</span>
+        {clan.location ? <span>{clan.location.toUpperCase()}</span> : null}
+      </strong>
       <p>{clan.description}</p>
       <div className="clan-summary">
         <Summary icon="/images/icons/trophy.png" value={clan.score.toLocaleString()} label="Clan Trophies" />
         <Summary icon="/images/icons/trophy.png" value={(clan.requiredTrophies ?? 0).toLocaleString()} label="Required Trophies" />
         <Summary icon="/images/icons/cardsq.png" value={clan.donations.toLocaleString()} label="Donations / Week" />
+        <Summary icon={clan.warBadge} value={clan.warTrophies.toLocaleString()} label={clan.warLeague ?? "War Trophies"} />
       </div>
+      <Link href={`/clans/${clan.tag}/war`} className="pink-button">
+        <Swords size={17} /> Clan war
+      </Link>
     </section>
   );
 }
@@ -52,17 +60,19 @@ export function MemberTable({ clan, onRefresh, isRefreshing }: { clan: Clan; onR
               <th>Level</th>
               <th>Trophies</th>
               <th>Donations</th>
+              <th>Received</th>
               <th>Role</th>
             </tr>
           </thead>
           <tbody>
             {clan.members.map((member, index) => (
               <tr key={member.tag ?? member.name}>
-                <td>#{member.rank ?? index + 1}</td>
+                <td><RankCell rank={member.rank ?? index + 1} previousRank={member.previousRank} /></td>
                 <td>{member.tag ? <Link href={`/players/${member.tag}`}><strong>{member.name}</strong></Link> : <strong>{member.name}</strong>}</td>
                 <td><span className="table-level">{member.level ?? "—"}</span></td>
                 <td><Image src="/images/icons/trophy.png" alt="" width={25} height={25} /> <strong>{member.trophies}</strong></td>
                 <td><Image src="/images/icons/book.png" alt="" width={22} height={25} />{member.donations}</td>
+                <td>{member.donationsReceived ?? "—"}</td>
                 <td><User size={20} />{member.role}</td>
               </tr>
             ))}

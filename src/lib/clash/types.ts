@@ -1,5 +1,9 @@
 export type ApiIconUrls = {
+  small?: string;
   medium?: string;
+  large?: string;
+  /** Present on cards that have an Evolution, and on player cards once unlocked. */
+  evolutionMedium?: string;
 };
 
 export type ApiCard = {
@@ -7,6 +11,14 @@ export type ApiCard = {
   name: string;
   elixirCost?: number;
   rarity?: string;
+  /** 0 (or absent) for the base card, 1 for an Evolution. */
+  evolutionLevel?: number;
+  maxEvolutionLevel?: number;
+  level?: number;
+  maxLevel?: number;
+  starLevel?: number;
+  count?: number;
+  rarityIconUrls?: ApiIconUrls;
   iconUrls?: ApiIconUrls;
 };
 
@@ -19,6 +31,13 @@ export type ApiClanReference = {
   tag?: string;
   name?: string;
   badgeId?: number;
+  badgeUrls?: ApiIconUrls;
+};
+
+export type ApiPlayerLeagueStats = {
+  trophies?: number;
+  bestTrophies?: number;
+  rank?: number | null;
 };
 
 export type ApiPlayer = {
@@ -40,26 +59,46 @@ export type ApiPlayer = {
   totalDonations?: number;
   warDayWins?: number;
   clanCardsCollected?: number;
+  role?: string;
+  starPoints?: number;
+  expPoints?: number;
+  totalExpPoints?: number;
+  legacyTrophyRoadHighScore?: number;
+  currentPathOfLegendSeasonResult?: ApiPlayerLeagueStats;
+  bestPathOfLegendSeasonResult?: ApiPlayerLeagueStats;
+  lastPathOfLegendSeasonResult?: ApiPlayerLeagueStats;
   arena?: ApiArena;
   clan?: ApiClanReference;
   currentDeck?: ApiCard[];
+  currentDeckSupportCards?: ApiCard[];
   currentFavouriteCard?: ApiCard;
   cards?: ApiCard[];
+  supportCards?: ApiCard[];
+  badges?: Array<{ name?: string; level?: number; maxLevel?: number; progress?: number; iconUrls?: ApiIconUrls }>;
+  achievements?: Array<{ name?: string; stars?: number; value?: number; target?: number; info?: string }>;
 };
 
 export type ApiBattleParticipant = {
   tag?: string;
   name?: string;
   crowns?: number;
+  kingTowerHitPoints?: number | null;
+  princessTowersHitPoints?: number[] | null;
   trophyChange?: number;
+  startingTrophies?: number;
+  elixirLeaked?: number;
   clan?: ApiClanReference;
   cards?: ApiCard[];
+  supportCards?: ApiCard[];
 };
 
 export type ApiBattle = {
   type?: string;
   battleTime?: string;
-  gameMode?: { name?: string };
+  isLadderTournament?: boolean;
+  arena?: ApiArena;
+  gameMode?: { id?: number; name?: string };
+  deckSelection?: string;
   team?: ApiBattleParticipant[];
   opponent?: ApiBattleParticipant[];
 };
@@ -79,8 +118,12 @@ export type ApiClanMember = {
   role?: string;
   expLevel?: number;
   trophies?: number;
+  arena?: ApiArena;
   clanRank?: number;
+  previousClanRank?: number;
   donations?: number;
+  donationsReceived?: number;
+  lastSeen?: string;
 };
 
 export type ApiClan = {
@@ -89,17 +132,153 @@ export type ApiClan = {
   type?: string;
   description?: string;
   badgeId?: number;
+  badgeUrls?: ApiIconUrls;
   clanScore?: number;
   clanWarTrophies?: number;
   requiredTrophies?: number;
   donationsPerWeek?: number;
+  clanChestLevel?: number;
+  clanChestMaxLevel?: number;
   members?: number;
+  location?: ApiLocation;
   memberList?: ApiClanMember[];
 };
 
 export type ApiCardList = {
   items?: ApiCard[];
+  /** Tower Troops (Tower Princess, Cannoneer, Dagger Duchess, ...). */
+  supportItems?: ApiCard[];
 };
+
+/* -------------------------------------------------------------------------- */
+/* Locations, rankings and leaderboards                                        */
+/* -------------------------------------------------------------------------- */
+
+export type ApiLocation = {
+  id: number;
+  name: string;
+  isCountry?: boolean;
+  countryCode?: string;
+};
+
+export type ApiPlayerRanking = {
+  tag: string;
+  name: string;
+  rank?: number;
+  previousRank?: number;
+  expLevel?: number;
+  trophies?: number;
+  eloRating?: number;
+  clan?: ApiClanReference;
+  arena?: ApiArena;
+};
+
+export type ApiClanRanking = {
+  tag: string;
+  name: string;
+  rank?: number;
+  previousRank?: number;
+  badgeId?: number;
+  badgeUrls?: ApiIconUrls;
+  clanScore?: number;
+  clanWarTrophies?: number;
+  members?: number;
+  location?: ApiLocation;
+};
+
+export type ApiLeaderboard = {
+  id: number;
+  name?: string;
+  /** Present on some season leaderboards. */
+  iconUrls?: ApiIconUrls;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Clan Wars 2 (River Race)                                                    */
+/* -------------------------------------------------------------------------- */
+
+export type ApiRiverRaceParticipant = {
+  tag?: string;
+  name?: string;
+  fame?: number;
+  repairPoints?: number;
+  boatAttacks?: number;
+  decksUsed?: number;
+  decksUsedToday?: number;
+};
+
+export type ApiRiverRaceClan = {
+  tag?: string;
+  name?: string;
+  badgeId?: number;
+  badgeUrls?: ApiIconUrls;
+  fame?: number;
+  repairPoints?: number;
+  finishTime?: string;
+  clanScore?: number;
+  periodPoints?: number;
+  participants?: ApiRiverRaceParticipant[];
+};
+
+export type ApiCurrentRiverRace = {
+  state?: string;
+  clan?: ApiRiverRaceClan;
+  clans?: ApiRiverRaceClan[];
+  sectionIndex?: number;
+  periodIndex?: number;
+  periodType?: string;
+  periodLogs?: Array<{
+    periodIndex?: number;
+    items?: Array<{ clan?: { tag?: string }; pointsEarned?: number; progressStartOfDay?: number; progressEndOfDay?: number }>;
+  }>;
+};
+
+export type ApiRiverRaceLogEntry = {
+  seasonId?: number;
+  sectionIndex?: number;
+  createdDate?: string;
+  standings?: Array<{
+    rank?: number;
+    trophyChange?: number;
+    clan?: ApiRiverRaceClan;
+  }>;
+};
+
+export type ApiRiverRaceLog = {
+  items?: ApiRiverRaceLogEntry[];
+};
+
+/* -------------------------------------------------------------------------- */
+/* Tournaments                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export type ApiTournament = {
+  tag: string;
+  name?: string;
+  type?: string;
+  status?: string;
+  creatorTag?: string;
+  description?: string;
+  capacity?: number;
+  maxCapacity?: number;
+  preparationDuration?: number;
+  duration?: number;
+  createdTime?: string;
+  startedTime?: string;
+  endedTime?: string;
+  levelCap?: number;
+  firstPlaceCardPrize?: number;
+  gameMode?: { id?: number; name?: string };
+};
+
+export type ApiPaged<T> = {
+  items?: T[];
+  paging?: { cursors?: { after?: string; before?: string } };
+};
+
+/* -------------------------------------------------------------------------- */
+/* Convex payload envelopes                                                    */
+/* -------------------------------------------------------------------------- */
 
 export type CachedPayload<T> = {
   data: T;
@@ -117,6 +296,39 @@ export type ClanBundlePayload = {
   clan: CachedPayload<ApiClan>;
 };
 
+export type ClanWarPayload = {
+  currentRace: CachedPayload<ApiCurrentRiverRace | null>;
+  raceLog: CachedPayload<ApiRiverRaceLog | null>;
+};
+
 export type CardsPayload = {
   cards: CachedPayload<ApiCardList>;
+};
+
+export type LocationsPayload = {
+  locations: CachedPayload<ApiPaged<ApiLocation>>;
+};
+
+export type RankingKind = "players" | "clans" | "clanwars";
+
+export type RankingsPayload = {
+  kind: RankingKind;
+  locationId: number;
+  rankings: CachedPayload<ApiPaged<ApiPlayerRanking | ApiClanRanking>>;
+};
+
+export type LeaderboardListPayload = {
+  leaderboards: CachedPayload<ApiPaged<ApiLeaderboard>>;
+};
+
+export type LeaderboardPayload = {
+  leaderboard: CachedPayload<ApiPaged<ApiPlayerRanking>>;
+};
+
+export type ClanSearchPayload = {
+  results: CachedPayload<ApiPaged<ApiClan>>;
+};
+
+export type TournamentsPayload = {
+  tournaments: CachedPayload<ApiPaged<ApiTournament>>;
 };
