@@ -72,11 +72,11 @@ async function run(ctx: ActionCtx, job: string, body: () => Promise<RunResult>):
  *
  * Supercell retired the trophy-road player leaderboard — every
  * `/locations/{id}/rankings/players` variant now answers 404 or an empty list —
- * so the Path of Legends board is the only live player ranking. It is also only
- * a few hundred players deep and skews to the very top of the ladder, so the
- * rosters of the top clans fill out the rest of the queue. Clan rankings still
- * work, and a clan roster is the largest batch of active tags the API will hand
- * over in one request.
+ * so the event boards behind `/leaderboards` are the only live player ranking.
+ * They are a few hundred players deep and skew to the very top, so the rosters
+ * of the top clans fill out the rest of the queue. Clan rankings still work,
+ * and a clan roster is the largest batch of active tags the API will hand over
+ * in one request.
  *
  * Rank becomes crawl priority, so the most relevant players are polled first.
  */
@@ -87,18 +87,22 @@ export const discover = internalAction({
     const clanCount = Math.min(envNumber("CLASH_CLAN_SEED", 20), 100);
 
     return run(ctx, "discover", async (): Promise<RunResult> => {
-      const targets: Array<{ tag: string; source: "pathOfLegends" | "clan"; priority: number }> = [];
+      const targets: Array<{ tag: string; source: "leaderboard" | "clan"; priority: number }> = [];
 
       const boards = await clashRequest<ApiPaged<ApiLeaderboard>>("/leaderboards");
       await logFetch(ctx, "/leaderboards", boards.status, boards.ok);
-      const boardId = boards.ok ? boards.data.items?.[0]?.id : undefined;
+      // Many boards come back with a null name, and ids climb with each new
+      // instance of an event, so the highest named id is the live one.
+      const boardId = boards.ok
+        ? (boards.data.items ?? []).filter((board) => board.name).sort((a, b) => b.id - a.id)[0]?.id
+        : undefined;
 
       if (typeof boardId === "number") {
         const top = await clashRequest<ApiPaged<ApiPlayerRanking>>(`/leaderboard/${boardId}?limit=${limit}`);
         await logFetch(ctx, "/leaderboard/{id}", top.status, top.ok);
         if (top.ok) {
           for (const [index, player] of (top.data.items ?? []).entries()) {
-            if (player.tag) targets.push({ tag: player.tag.replace(/^#/, ""), source: "pathOfLegends", priority: index });
+            if (player.tag) targets.push({ tag: player.tag.replace(/^#/, ""), source: "leaderboard", priority: index });
           }
         }
       }

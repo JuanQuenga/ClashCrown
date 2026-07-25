@@ -6,17 +6,19 @@ import { Layout } from "@/components/portfolio/Layout";
 import { ErrorState, LoadingState, SetupState } from "@/components/portfolio/AsyncState";
 import { EntityCell, RankCell, TableShell, TrophyCell } from "@/components/portfolio/DataTable";
 import { badgeImage } from "@/lib/clash/assets";
-import type { ApiClanRanking, ApiLocation, ApiPlayerRanking, RankingKind } from "@/lib/clash/types";
+import type { ApiClanRanking, ApiLeaderboard, ApiLocation, ApiPlayerRanking, RankingKind } from "@/lib/clash/types";
 import {
   GLOBAL_LOCATION_ID,
   errorMessage,
   isConvexConfigured,
+  leaderboardAction,
+  leaderboardsAction,
   locationsAction,
   rankingsAction
 } from "@/lib/convex";
 
 const TABS: Array<{ kind: RankingKind; label: string; blurb: string }> = [
-  { kind: "players", label: "Top Players", blurb: "Highest trophy counts on the ladder." },
+  { kind: "players", label: "Top Players", blurb: "The event and season leaderboards the game is currently running." },
   { kind: "clans", label: "Top Clans", blurb: "Clans ranked by total clan score." },
   { kind: "clanwars", label: "Clan Wars", blurb: "Clans ranked by war trophies." }
 ];
@@ -35,20 +37,43 @@ export default function LeaderboardsPage() {
 function Leaderboards() {
   const [kind, setKind] = useState<RankingKind>("players");
   const [locationId, setLocationId] = useState(GLOBAL_LOCATION_ID);
+  const [boardId, setBoardId] = useState<number | undefined>();
 
   const getLocations = useAction(locationsAction);
   const getRankings = useAction(rankingsAction);
+  const getBoards = useAction(leaderboardsAction);
+  const getBoard = useAction(leaderboardAction);
 
   const locationsQuery = useQuery({
     queryKey: ["locations"],
     queryFn: async () => (await getLocations({})).locations.data.items ?? [],
     staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
+    enabled: kind !== "players"
+  });
+
+  const boardsQuery = useQuery({
+    queryKey: ["leaderboards"],
+    queryFn: async () => namedBoards((await getBoards({})).leaderboards.data.items ?? []),
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+    enabled: kind === "players"
+  });
+
+  const activeBoard = boardId ?? boardsQuery.data?.[0]?.id;
+
+  const boardQuery = useQuery({
+    queryKey: ["leaderboard", activeBoard],
+    queryFn: async () => (await getBoard({ leaderboardId: activeBoard!, limit: 100 })).leaderboard.data.items ?? [],
+    enabled: kind === "players" && typeof activeBoard === "number",
+    placeholderData: (previous) => previous,
     retry: false
   });
 
   const rankingsQuery = useQuery({
     queryKey: ["rankings", kind, locationId],
     queryFn: async () => (await getRankings({ kind, locationId, limit: 100 })).rankings.data.items ?? [],
+    enabled: kind !== "players",
     placeholderData: (previous) => previous,
     retry: false
   });
@@ -57,6 +82,7 @@ function Leaderboards() {
   // actually returns over our hardcoded fallback id.
   const { global, countries } = useMemo(() => splitLocations(locationsQuery.data ?? []), [locationsQuery.data]);
   const activeTab = TABS.find((tab) => tab.kind === kind) ?? TABS[0];
+  const active = kind === "players" ? boardQuery : rankingsQuery;
 
   return (
     <Layout>
@@ -79,37 +105,60 @@ function Leaderboards() {
           ))}
         </div>
 
+        {/* Event boards are not location-scoped, so the region filter only
+            applies to the clan tabs. */}
         <div className="browser-toolbar">
-          <label className="rarity-filter">
-            <span className="sr-only">Region</span>
-            <select value={locationId} onChange={(event) => setLocationId(Number(event.target.value))}>
-              {global.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-              {countries.length ? (
-                <optgroup label="Countries">
-                  {countries.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.name}
+          {kind === "players" ? (
+            <label className="rarity-filter">
+              <span className="sr-only">Leaderboard</span>
+              <select
+                value={activeBoard ?? ""}
+                onChange={(event) => setBoardId(Number(event.target.value))}
+                disabled={!boardsQuery.data?.length}
+              >
+                {boardsQuery.data?.length ? (
+                  boardsQuery.data.map((board) => (
+                    <option key={board.id} value={board.id}>
+                      {board.name}
                     </option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </select>
-          </label>
+                  ))
+                ) : (
+                  <option value="">Loading leaderboards…</option>
+                )}
+              </select>
+            </label>
+          ) : (
+            <label className="rarity-filter">
+              <span className="sr-only">Region</span>
+              <select value={locationId} onChange={(event) => setLocationId(Number(event.target.value))}>
+                {global.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+                {countries.length ? (
+                  <optgroup label="Countries">
+                    {countries.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+          )}
         </div>
 
-        {rankingsQuery.isLoading ? <LoadingState label="rankings" /> : null}
-        {rankingsQuery.error ? <ErrorState message={errorMessage(rankingsQuery.error)} /> : null}
-        {rankingsQuery.data ? (
-          kind === "players" ? (
-            <PlayerRankings rows={rankingsQuery.data as ApiPlayerRanking[]} />
-          ) : (
-            <ClanRankings rows={rankingsQuery.data as ApiClanRanking[]} kind={kind} />
-          )
-        ) : null}
+        {active.isLoading ? <LoadingState label="rankings" /> : null}
+        {active.error ? <ErrorState message={errorMessage(active.error)} /> : null}
+        {kind === "players"
+          ? boardQuery.data
+            ? <PlayerRankings rows={boardQuery.data} label={boardsQuery.data?.find((b) => b.id === activeBoard)?.name} />
+            : null
+          : rankingsQuery.data
+            ? <ClanRankings rows={rankingsQuery.data as ApiClanRanking[]} kind={kind} />
+            : null}
       </div>
     </Layout>
   );
@@ -124,13 +173,32 @@ function splitLocations(locations: ApiLocation[]) {
   };
 }
 
-function PlayerRankings({ rows }: { rows: ApiPlayerRanking[] }) {
+/**
+ * `/leaderboards` returns every board the game is running, including several
+ * past instances of the same event and a number with a null name. Keeping the
+ * highest id per name leaves one labelled entry per event — the current one,
+ * since ids climb with each new instance.
+ */
+function namedBoards(boards: ApiLeaderboard[]) {
+  const byName = new Map<string, ApiLeaderboard & { name: string }>();
+  for (const board of boards) {
+    if (!board.name) continue;
+    const existing = byName.get(board.name);
+    if (!existing || board.id > existing.id) byName.set(board.name, { ...board, name: board.name });
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Sentinel the API returns on boards with no meaningful score. */
+const SCORE_SENTINEL = 2147483647;
+
+function PlayerRankings({ rows, label }: { rows: ApiPlayerRanking[]; label?: string }) {
   return (
     <TableShell
-      title="Top Players"
-      head={["Rank", "Player", "Level", "Trophies", "Clan"]}
+      title={label ?? "Top Players"}
+      head={["Rank", "Player", "Score", "Clan"]}
       empty={!rows.length}
-      note={`Showing ${rows.length} ranked players.`}
+      note={`Showing ${rows.length} ranked players. Event boards report a score rather than trophies.`}
     >
       {rows.map((row) => (
         <tr key={row.tag}>
@@ -141,10 +209,11 @@ function PlayerRankings({ rows }: { rows: ApiPlayerRanking[] }) {
             <EntityCell href={`/players/${row.tag.replace(/^#/, "")}`} name={row.name} sub={row.tag} />
           </td>
           <td>
-            <span className="table-level">{row.expLevel ?? "—"}</span>
-          </td>
-          <td>
-            <TrophyCell value={row.trophies} />
+            {typeof row.score === "number" && row.score !== SCORE_SENTINEL ? (
+              <TrophyCell value={row.score} />
+            ) : (
+              "—"
+            )}
           </td>
           <td>
             {row.clan?.tag ? (

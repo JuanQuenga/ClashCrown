@@ -28,6 +28,8 @@ export const metaMode = v.union(
 export const crawlSource = v.union(
   v.literal("ladder"),
   v.literal("pathOfLegends"),
+  /** An event or season board from /leaderboards. */
+  v.literal("leaderboard"),
   v.literal("clan"),
   v.literal("manual")
 );

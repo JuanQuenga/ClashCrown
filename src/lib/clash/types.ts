@@ -169,6 +169,8 @@ export type ApiPlayerRanking = {
   expLevel?: number;
   trophies?: number;
   eloRating?: number;
+  /** Returned by /leaderboard/{id}; trophies and expLevel are not. */
+  score?: number;
   clan?: ApiClanReference;
   arena?: ApiArena;
 };
@@ -188,7 +190,8 @@ export type ApiClanRanking = {
 
 export type ApiLeaderboard = {
   id: number;
-  name?: string;
+  /** Genuinely null on many boards, not merely absent. */
+  name?: string | null;
   /** Present on some season leaderboards. */
   iconUrls?: ApiIconUrls;
 };
