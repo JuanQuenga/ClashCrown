@@ -6,7 +6,14 @@ import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { clashRequest } from "./clashFetch";
 import { battleObservations, META_MODES, type DeckObservation, type MetaMode } from "../src/lib/clash/battles";
-import type { ApiBattle, ApiLeaderboard, ApiPaged, ApiPlayerRanking } from "../src/lib/clash/types";
+import type {
+  ApiBattle,
+  ApiClan,
+  ApiClanRanking,
+  ApiLeaderboard,
+  ApiPaged,
+  ApiPlayerRanking
+} from "../src/lib/clash/types";
 
 /**
  * Fetching half of the battle-log pipeline. The official API exposes battles
@@ -17,7 +24,8 @@ import type { ApiBattle, ApiLeaderboard, ApiPaged, ApiPlayerRanking } from "../s
  * this needs Node built-ins.
  */
 
-const GLOBAL_LOCATION_ID = 57000000;
+/** "International" in /locations. 57000000 is Europe, despite reading like a global id. */
+const GLOBAL_LOCATION_ID = 57000006;
 /** How long a claimed target stays off the queue while its fetch is in flight. */
 const LEASE_MS = 5 * 60 * 1000;
 /** Battle logs hold 25 battles, so polling faster than this mostly re-reads old rows. */
@@ -60,30 +68,27 @@ async function run(ctx: ActionCtx, job: string, body: () => Promise<RunResult>):
 // --- Discovery ------------------------------------------------------------
 
 /**
- * Refills the crawl queue from the public leaderboards. Ladder rank becomes the
- * crawl priority, so the players generating the most relevant battles are the
- * ones we poll first.
+ * Refills the crawl queue.
+ *
+ * Supercell retired the trophy-road player leaderboard — every
+ * `/locations/{id}/rankings/players` variant now answers 404 or an empty list —
+ * so the Path of Legends board is the only live player ranking. It is also only
+ * a few hundred players deep and skews to the very top of the ladder, so the
+ * rosters of the top clans fill out the rest of the queue. Clan rankings still
+ * work, and a clan roster is the largest batch of active tags the API will hand
+ * over in one request.
+ *
+ * Rank becomes crawl priority, so the most relevant players are polled first.
  */
 export const discover = internalAction({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = Math.min(args.limit ?? envNumber("CLASH_DISCOVER_LIMIT", 200), 1000);
+    const clanCount = Math.min(envNumber("CLASH_CLAN_SEED", 20), 100);
 
     return run(ctx, "discover", async (): Promise<RunResult> => {
-      const targets: Array<{ tag: string; source: "ladder" | "pathOfLegends"; priority: number }> = [];
+      const targets: Array<{ tag: string; source: "pathOfLegends" | "clan"; priority: number }> = [];
 
-      const ladder = await clashRequest<ApiPaged<ApiPlayerRanking>>(
-        `/locations/${GLOBAL_LOCATION_ID}/rankings/players?limit=${limit}`
-      );
-      await logFetch(ctx, "/locations/global/rankings/players", ladder.status, ladder.ok);
-      if (ladder.ok) {
-        for (const [index, player] of (ladder.data.items ?? []).entries()) {
-          if (player.tag) targets.push({ tag: player.tag.replace(/^#/, ""), source: "ladder", priority: index });
-        }
-      }
-
-      // Path of Legends is a separate ladder with its own metagame, so it gets
-      // its own seed set rather than being inferred from trophy rankings.
       const boards = await clashRequest<ApiPaged<ApiLeaderboard>>("/leaderboards");
       await logFetch(ctx, "/leaderboards", boards.status, boards.ok);
       const boardId = boards.ok ? boards.data.items?.[0]?.id : undefined;
@@ -98,8 +103,31 @@ export const discover = internalAction({
         }
       }
 
+      // Clan rosters start after the Path of Legends board in priority order,
+      // so the leaderboard players keep the front of the queue.
+      const clans = await clashRequest<ApiPaged<ApiClanRanking>>(
+        `/locations/${GLOBAL_LOCATION_ID}/rankings/clans?limit=${clanCount}`
+      );
+      await logFetch(ctx, "/locations/international/rankings/clans", clans.status, clans.ok);
+
+      if (clans.ok) {
+        let priority = limit;
+        for (const clan of clans.data.items ?? []) {
+          if (!clan.tag) continue;
+          const roster = await clashRequest<ApiClan>(`/clans/%23${clan.tag.replace(/^#/, "")}`);
+          await logFetch(ctx, "/clans/{tag}", roster.status, roster.ok);
+          if (!roster.ok) continue;
+          for (const member of roster.data.memberList ?? []) {
+            if (member.tag) targets.push({ tag: member.tag.replace(/^#/, ""), source: "clan", priority: priority++ });
+          }
+        }
+      }
+
       if (!targets.length) {
-        return { note: ladder.ok ? "Leaderboards returned no players." : ladder.message, counters: { discovered: 0 } };
+        return {
+          note: boards.ok ? "Leaderboards returned no players." : boards.message,
+          counters: { discovered: 0 }
+        };
       }
 
       const { added, seen } = await ctx.runMutation(internal.meta.upsertTargets, { targets });

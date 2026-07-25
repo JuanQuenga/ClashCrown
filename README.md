@@ -17,7 +17,7 @@ The official API exposes battles per player only, 25 at a time, so deck statisti
 
 | Job | Interval | What it does |
 | --- | --- | --- |
-| `discover` | 6h | Seeds the crawl queue from the global ladder and Path of Legends leaderboards. |
+| `discover` | 6h | Seeds the crawl queue from the Path of Legends leaderboard and the rosters of the top clans. Supercell retired the trophy-road player leaderboard, so those are the only live sources of player tags. |
 | `crawl` | 2m | Fetches a batch of battle logs sequentially and folds each battle into per-day deck and card counters. |
 | `rollup` | 30m | Materialises the 1-day and 7-day deck leaderboards. |
 | `prune` | 6h | Drops aggregates past the 30-day retention window. |
@@ -57,7 +57,8 @@ The pipeline reads these optional Convex environment variables, so it can be tun
 | --- | --- | --- |
 | `BETA_ADMIN_KEY` | unset | Required by the "queue a player" control on `/beta`. Without it the control is inert. |
 | `CLASH_CRAWL_BATCH` | `8` | Battle logs fetched per crawl tick. Batch size × tick rate is the API request rate. |
-| `CLASH_DISCOVER_LIMIT` | `200` | Leaderboard entries seeded per discovery run. |
+| `CLASH_DISCOVER_LIMIT` | `200` | Path of Legends leaderboard entries seeded per discovery run. |
+| `CLASH_CLAN_SEED` | `20` | Top clans whose rosters are seeded per discovery run. One request each. |
 | `CLASH_RANKING_SIZE` | `100` | Decks kept per mode per window in the materialised leaderboard. |
 | `CLASH_MIN_DECK_USES` | `5` | Observations a deck needs before it is ranked at all. |
 

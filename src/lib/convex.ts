@@ -100,8 +100,8 @@ export const seedTagMutation = makeFunctionReference<
   { ok: boolean; message: string }
 >("meta:seedTag");
 
-/** Matches GLOBAL_LOCATION_ID in convex/clashApi.ts. */
-export const GLOBAL_LOCATION_ID = 57000000;
+/** Matches GLOBAL_LOCATION_ID in convex/clashApi.ts. "International", not Europe. */
+export const GLOBAL_LOCATION_ID = 57000006;
 
 export function errorMessage(error: unknown) {
   if (error instanceof Error) {

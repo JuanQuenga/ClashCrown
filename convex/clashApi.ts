@@ -66,9 +66,9 @@ type ActionCtx = GenericActionCtx<GenericDataModel>;
 /**
  * "International" in the /locations list — the pseudo-location used for global
  * rankings. Clients should prefer the id resolved from /locations and only fall
- * back to this constant.
+ * back to this constant. 57000000 is Europe, not global.
  */
-export const GLOBAL_LOCATION_ID = 57000000;
+export const GLOBAL_LOCATION_ID = 57000006;
 
 function normalizeActionTag(input: string) {
   try {
