@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAction } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
@@ -84,6 +84,54 @@ function Leaderboards() {
   const activeTab = TABS.find((tab) => tab.kind === kind) ?? TABS[0];
   const active = kind === "players" ? boardQuery : rankingsQuery;
 
+  // Both pickers live in the table's own heading rather than a bar of their own:
+  // the heading already names the board, so a separate strip above it repeated
+  // the same words in a control stranded at the left edge of the page.
+  const boardPicker = (
+    <label className="rarity-filter">
+      <span className="sr-only">Leaderboard</span>
+      <select
+        value={activeBoard ?? ""}
+        onChange={(event) => setBoardId(Number(event.target.value))}
+        disabled={!boardsQuery.data?.length}
+      >
+        {boardsQuery.data?.length ? (
+          boardsQuery.data.map((board) => (
+            <option key={board.id} value={board.id}>
+              {board.name}
+            </option>
+          ))
+        ) : (
+          <option value="">Loading leaderboards…</option>
+        )}
+      </select>
+    </label>
+  );
+
+  // Event boards are not location-scoped, so the region filter only applies to
+  // the clan tabs.
+  const regionPicker = (
+    <label className="rarity-filter">
+      <span className="sr-only">Region</span>
+      <select value={locationId} onChange={(event) => setLocationId(Number(event.target.value))}>
+        {global.map((location) => (
+          <option key={location.id} value={location.id}>
+            {location.name}
+          </option>
+        ))}
+        {countries.length ? (
+          <optgroup label="Countries">
+            {countries.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
+      </select>
+    </label>
+  );
+
   return (
     <Layout>
       <Head>
@@ -105,59 +153,14 @@ function Leaderboards() {
           ))}
         </div>
 
-        {/* Event boards are not location-scoped, so the region filter only
-            applies to the clan tabs. */}
-        <div className="browser-toolbar">
-          {kind === "players" ? (
-            <label className="rarity-filter">
-              <span className="sr-only">Leaderboard</span>
-              <select
-                value={activeBoard ?? ""}
-                onChange={(event) => setBoardId(Number(event.target.value))}
-                disabled={!boardsQuery.data?.length}
-              >
-                {boardsQuery.data?.length ? (
-                  boardsQuery.data.map((board) => (
-                    <option key={board.id} value={board.id}>
-                      {board.name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">Loading leaderboards…</option>
-                )}
-              </select>
-            </label>
-          ) : (
-            <label className="rarity-filter">
-              <span className="sr-only">Region</span>
-              <select value={locationId} onChange={(event) => setLocationId(Number(event.target.value))}>
-                {global.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-                {countries.length ? (
-                  <optgroup label="Countries">
-                    {countries.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-            </label>
-          )}
-        </div>
-
         {active.isLoading ? <LoadingState label="rankings" /> : null}
         {active.error ? <ErrorState message={errorMessage(active.error)} /> : null}
         {kind === "players"
           ? boardQuery.data
-            ? <PlayerRankings rows={boardQuery.data} label={boardsQuery.data?.find((b) => b.id === activeBoard)?.name} />
+            ? <PlayerRankings rows={boardQuery.data} label={boardsQuery.data?.find((b) => b.id === activeBoard)?.name} toolbar={boardPicker} />
             : null
           : rankingsQuery.data
-            ? <ClanRankings rows={rankingsQuery.data as ApiClanRanking[]} kind={kind} />
+            ? <ClanRankings rows={rankingsQuery.data as ApiClanRanking[]} kind={kind} toolbar={regionPicker} />
             : null}
       </div>
     </Layout>
@@ -192,12 +195,14 @@ function namedBoards(boards: ApiLeaderboard[]) {
 /** Sentinel the API returns on boards with no meaningful score. */
 const SCORE_SENTINEL = 2147483647;
 
-function PlayerRankings({ rows, label }: { rows: ApiPlayerRanking[]; label?: string }) {
+function PlayerRankings({ rows, label, toolbar }: { rows: ApiPlayerRanking[]; label?: string; toolbar?: ReactNode }) {
   return (
     <TableShell
       title={label ?? "Top Players"}
+      toolbar={toolbar}
       head={["Rank", "Player", "Score", "Clan"]}
       empty={!rows.length}
+      emptyMessage="This board has no entries yet. Event leaderboards fill up once the event has been running for a while."
       note={`Showing ${rows.length} ranked players. Event boards report a score rather than trophies.`}
     >
       {rows.map((row) => (
@@ -232,13 +237,15 @@ function PlayerRankings({ rows, label }: { rows: ApiPlayerRanking[]; label?: str
   );
 }
 
-function ClanRankings({ rows, kind }: { rows: ApiClanRanking[]; kind: RankingKind }) {
+function ClanRankings({ rows, kind, toolbar }: { rows: ApiClanRanking[]; kind: RankingKind; toolbar?: ReactNode }) {
   const warMode = kind === "clanwars";
   return (
     <TableShell
       title={warMode ? "Clan War Rankings" : "Top Clans"}
+      toolbar={toolbar}
       head={["Rank", "Clan", "Members", warMode ? "War Trophies" : "Clan Score"]}
       empty={!rows.length}
+      emptyMessage="This region has no ranked clans. Smaller countries often rank fewer than the API's minimum, so try Global."
       note={`Showing ${rows.length} ranked clans.`}
     >
       {rows.map((row) => (

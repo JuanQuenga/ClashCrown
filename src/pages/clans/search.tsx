@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
@@ -116,8 +117,8 @@ function ClanSearch() {
             </button>
           </form>
           <p className="table-note">
-            The official API supports clan search by name, but has no equivalent for players — player lookup is exact-tag
-            only.
+            Searches the live directory the game itself uses, so a clan created a minute ago is already findable. Looking
+            for a person instead? <Link href="/players">Find a player</Link>.
           </p>
         </section>
 
@@ -129,6 +130,7 @@ function ClanSearch() {
             head={["Clan", "Members", "Score", "Required", "War Trophies"]}
             empty={!query.data.length}
             note={query.data.length ? `${query.data.length} clans found.` : undefined}
+            emptyMessage={`No clan matches “${submitted?.name ?? ""}” with those filters. Clan names must match at least three characters, and the size and score filters are applied on top of the name.`}
           >
             {query.data.map((clan) => (
               <tr key={clan.tag}>

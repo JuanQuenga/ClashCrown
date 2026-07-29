@@ -233,10 +233,14 @@ export function ProgressionChart({ player }: { player: Player }) {
             <div className="chart-popover"><Image src="/images/icons/trophy.png" alt="" width={21} height={21} />{latest.value}</div>
           </foreignObject>
         </svg>
+        {/* Ten ladder battles are usually one sitting, so every tick carried the
+            same date. Print a date only when it changes; the rest stay blank. */}
         <div className="x-axis">
-          {labels.map((date, index) => (
-            <span key={`${date}-${index}`}>{index === 0 ? date : date.replace(/, \d{4}$/, "")}</span>
-          ))}
+          {labels.map((date, index) => {
+            const short = index === 0 ? date : date.replace(/, \d{4}$/, "");
+            const repeat = index > 1 && short === labels[index - 1].replace(/, \d{4}$/, "");
+            return <span key={`${date}-${index}`}>{repeat ? "" : short}</span>;
+          })}
         </div>
       </div>
     </section>
@@ -246,15 +250,17 @@ export function ProgressionChart({ player }: { player: Player }) {
 export function ChestList({ chests }: { chests: Chest[] }) {
   return (
     <section className="chest-footer">
-      <h2>My Chests</h2>
+      {/* "My Chests" on someone else's profile read as the viewer's own. */}
+      <h2>Upcoming chests</h2>
       <div className="chest-row">
         {chests.map((chest, index) => (
-          <div key={`${chest.name}-${index}`} className="chest-item">
+          <div key={`${chest.name}-${index}`} className="chest-item" title={chest.name}>
             <Image src={chest.image} alt={chest.name} width={58} height={58} />
             <strong>+{chest.index}</strong>
           </div>
         ))}
       </div>
+      <p className="chest-note">+N is how many more chests this player has to open before that one.</p>
     </section>
   );
 }

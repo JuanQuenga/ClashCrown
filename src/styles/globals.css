@@ -532,10 +532,12 @@ button { cursor: pointer; }
   background: rgba(17, 43, 78, .9);
 }
 
+/* 62px broke the home page's rhythm: every other band is separated by ~37px,
+   so this one alone opened a visibly wider seam. */
 .mirror-band {
   width: min(1260px, 100%);
   height: 300px;
-  margin: 62px auto 0;
+  margin: 37px auto 0;
   display: grid;
   place-items: center;
   position: relative;
@@ -641,7 +643,10 @@ button { cursor: pointer; }
 
 .copy-deck { font-size: 18px; }
 .copy-deck img { width: 26px; height: 28px; object-fit: contain; }
-.deck-row .deck-strip { grid-template-columns: repeat(8, 54px); justify-content: center; }
+/* Two rows of four, the way a deck is laid out in-game. A single row of eight
+   reads as a filmstrip and makes each card too small to recognise. */
+.deck-row .deck-strip { grid-template-columns: repeat(4, 62px); justify-content: center; }
+.deck-row .deck-strip img { width: 62px; height: 76px; }
 
 .archetype-tabs {
   display: flex;
@@ -1031,6 +1036,24 @@ button { cursor: pointer; }
   margin-bottom: 34px;
 }
 
+/* The three-column grid exists to hang tools either side of a centred title.
+   The title is pinned to column 2, so anything auto-placed lands in the narrow
+   left column instead of the wide right one — pin the tools explicitly. */
+.section-tools > .update-tools,
+.section-heading > .update-tools { grid-column: 3; }
+
+/* With no tools at all the grid only serves to push the title 62px left of
+   centre (150px gutter against 275px). Collapse it. */
+.section-heading:not(:has(> * + *)) {
+  display: block;
+  margin-bottom: 24px;
+}
+
+/* Headings and filter rows carry no margin of their own, so without this the
+   tab row collides with both the title above it and the table below it. */
+.profile-section > h2 { margin-bottom: 24px; }
+.profile-section > .beta-tabs { margin-bottom: 24px; }
+
 .filter-button {
   width: 132px;
   height: 39px;
@@ -1053,6 +1076,10 @@ button { cursor: pointer; }
   color: #4d6388;
   font-size: 12px;
 }
+
+/* A select in the heading fills its column: sized to content it would grow to
+   the longest board name and push past the 275px the grid gives it. */
+.update-tools .rarity-filter { flex: 0 1 100%; min-width: 0; }
 
 .update-tools button {
   display: flex;
@@ -1162,15 +1189,18 @@ button { cursor: pointer; }
   font-size: 20px;
 }
 
+/* 980px at a 24px gap pushed the fourteenth chest of the standard cycle onto a
+   row of its own. 1020px matches the page's content column and fits all 14. */
 .chest-row {
-  width: min(980px, calc(100% - 36px));
+  width: min(1020px, calc(100% - 36px));
   margin: 0 auto;
   display: flex;
   justify-content: center;
-  gap: 24px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
+.chest-note { margin: 26px 0 0; color: #6f83a6; font: 12px/1.6 Arial, sans-serif; }
 .chest-item img { width: 52px; height: 52px; object-fit: contain; }
 .chest-item strong { display: block; color: #8798b5; font-size: 13px; margin-top: 6px; }
 
@@ -1588,6 +1618,7 @@ a.status-chip:hover { background: rgba(238, 102, 239, .3); }
   background: #1c4f8b;
   font-size: 11px;
 }
+.table-lastseen { color: #8ea2c4; font: 12px Arial, sans-serif; }
 .hero-level {
   width: 34px;
   height: 34px;
@@ -1638,7 +1669,9 @@ a.status-chip:hover { background: rgba(238, 102, 239, .3); }
   font-size: 11px;
 }
 .builder-summary .pink-button { justify-self: stretch; }
-.selected-deck { display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; }
+/* Two rows of four. Capped rather than 1fr so eight slots do not stretch into
+   giant tiles on a wide screen. */
+.selected-deck { display: grid; grid-template-columns: repeat(4, minmax(0, 108px)); justify-content: center; gap: 14px; }
 .selected-deck button,
 .empty-card { aspect-ratio: .79; min-width: 0; position: relative; border-radius: 7px; }
 .selected-deck button { border: 1px solid transparent; background: transparent; padding: 0; }
@@ -1660,12 +1693,37 @@ a.status-chip:hover { background: rgba(238, 102, 239, .3); }
 .empty-card { display: grid; place-items: center; border: 1px dashed rgba(111, 134, 170, .38); background: rgba(3, 16, 28, .4); color: #536b91; }
 .builder-notice { margin: 18px 0 0; color: #ffd2f9; text-align: center; font: 12px Arial, sans-serif; }
 
+/* Flex rather than fixed columns: the card library carries a fourth control
+   that the deck builder does not, and a fixed three-column grid dropped it
+   onto its own row where an unstyled button read as a section heading. */
 .browser-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 170px 170px;
-  gap: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 24px;
 }
+.browser-toolbar .card-search { flex: 1 1 220px; min-width: 0; }
+/* Fixed, not shrinkable: the search field grows to absorb the slack, and any
+   shrink here clips the longest option ("Most played") under the native caret. */
+.browser-toolbar .rarity-filter { flex: 0 0 190px; }
+.browser-toolbar > button { flex: 0 0 auto; }
+
+/* A filter toggle, so it has to look like a control whether it is on or off. */
+.toolbar-toggle {
+  height: 42px;
+  padding: 0 18px;
+  border: 1px solid rgba(62, 88, 128, .34);
+  border-radius: 7px;
+  color: #cbd8ef;
+  background: rgba(8, 24, 44, .72);
+  font: 11px Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+.toolbar-toggle:hover { border-color: rgba(238, 102, 239, .5); color: white; }
+.toolbar-toggle-on { border-color: transparent; color: white; background: var(--pink); }
 .card-search,
 .rarity-filter,
 .refresh-catalog {
@@ -1682,12 +1740,15 @@ a.status-chip:hover { background: rgba(238, 102, 239, .3); }
 .card-search input { width: 100%; border: 0; outline: 0; color: white; background: transparent; font: 13px Arial, sans-serif; }
 .rarity-filter select { width: 100%; height: 100%; border: 0; padding: 0 12px; color: white; background: transparent; }
 .refresh-catalog { justify-content: center; font-size: 11px; }
-.card-library { display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; }
+/* Auto-fill rather than a fixed eight columns: eight tiles across 1020px left
+   ~114px each, which squeezes 68px of artwork and two lines of 8px type into a
+   tile with nowhere to breathe. */
+.card-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 14px; }
 .card-library button {
   min-width: 0;
-  min-height: 145px;
+  min-height: 158px;
   position: relative;
-  padding: 10px 6px;
+  padding: 12px 8px;
   display: grid;
   justify-items: center;
   align-content: center;
@@ -1699,22 +1760,33 @@ a.status-chip:hover { background: rgba(238, 102, 239, .3); }
 }
 .card-library button:hover,
 .card-library button.selected { border-color: rgba(238, 102, 239, .55); background: rgba(87, 35, 105, .34); transform: translateY(-2px); }
-.card-library img { width: 68px; height: 84px; object-fit: contain; }
-.card-library strong { font-size: 9px; line-height: 1.2; }
-.card-library span { color: #8ea2c4; font: 8px Arial, sans-serif; }
+.card-library img { width: 72px; height: 88px; object-fit: contain; }
+.card-library strong { font-size: 10px; line-height: 1.25; }
+.card-library span { color: #8ea2c4; font: 9px Arial, sans-serif; }
 .selected-check { position: absolute; top: 8px; right: 8px; color: #fff; background: var(--pink); border-radius: 50%; padding: 2px; }
-.empty-results { min-height: 160px; display: grid; place-content: center; color: #8ea2c4; text-align: center; }
+/* Explicit type: without it this inherits the Supercell display face at
+   heading size, so "no results" shouted louder than the section title. */
+.empty-results {
+  min-height: 140px;
+  max-width: 620px;
+  margin: 0 auto;
+  display: grid;
+  place-content: center;
+  color: #8ea2c4;
+  font: 13px/1.65 Arial, sans-serif;
+  text-align: center;
+}
 
 /* Card tiles link to a detail page, so they are anchors rather than the builder's buttons. */
 .card-tile {
   min-width: 0;
-  min-height: 145px;
+  min-height: 158px;
   position: relative;
-  padding: 10px 6px;
+  padding: 12px 8px;
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 5px;
+  gap: 6px;
   border: 1px solid rgba(62, 88, 128, .18);
   border-radius: 7px;
   color: white;
@@ -1723,19 +1795,24 @@ a.status-chip:hover { background: rgba(238, 102, 239, .3); }
   transition: transform .15s ease, border-color .15s ease, background .15s ease;
 }
 .card-tile:hover { border-color: rgba(238, 102, 239, .55); background: rgba(87, 35, 105, .34); transform: translateY(-2px); }
-.card-tile img { width: 68px; height: 84px; object-fit: contain; }
-.card-tile strong { font-size: 9px; line-height: 1.2; }
-.card-tile span { color: #8ea2c4; font: 8px Arial, sans-serif; }
+.card-tile img { width: 72px; height: 88px; object-fit: contain; }
+.card-tile strong { font-size: 10px; line-height: 1.25; }
+.card-tile span { color: #8ea2c4; font: 9px Arial, sans-serif; }
+/* "This card has an Evolution available." Nearly half the catalog evolves, so a
+   solid badge turned the grid into a field of cyan blobs louder than the card
+   art itself. An outline reads as a tag at a glance and only at a glance. */
 .evo-flag {
   position: absolute;
   top: 6px;
-  left: 6px;
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: linear-gradient(#7ae0ff, #2b8fd6);
-  color: #04203a;
-  font: 700 7px Arial, sans-serif;
-  letter-spacing: .06em;
+  right: 6px;
+  z-index: 1;
+  padding: 1px 5px;
+  border: 1px solid rgba(122, 224, 255, .45);
+  border-radius: 999px;
+  background: rgba(122, 224, 255, .1);
+  color: #7ae0ff;
+  font: 700 8px/1.45 Arial, sans-serif;
+  letter-spacing: .08em;
 }
 
 .rank-cell { display: inline-flex; align-items: baseline; gap: 6px; }
@@ -1826,18 +1903,18 @@ a:hover .entity-cell strong { color: var(--pink-bright); }
   .mini-deck { grid-template-columns: repeat(4, 1fr); }
   .collection-grid,
   .deck-collection { grid-template-columns: repeat(2, 1fr); }
-  .builder-summary,
-  .browser-toolbar { grid-template-columns: 1fr 1fr; }
+  .builder-summary { grid-template-columns: 1fr 1fr; }
+  .browser-toolbar .card-search { flex: 1 1 100%; }
   .builder-summary .pink-button { justify-self: stretch; }
-  .selected-deck { grid-template-columns: repeat(4, 1fr); }
+  .selected-deck { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .card-library { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 420px) {
   .search-box { grid-template-columns: 104px 1fr 42px; }
   .builder-summary,
-  .browser-toolbar,
   .search-filters { grid-template-columns: 1fr; }
+  .browser-toolbar .rarity-filter { flex: 1 1 100%; }
   .card-library { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -1861,6 +1938,22 @@ a:hover .entity-cell strong { color: var(--pink-bright); }
 .beta-tile small { color: #8ea2c4; font: 11px Arial, sans-serif; }
 
 .beta-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+
+/* Reads as a filter bar. Wrapping these pills in a full .profile-section gave
+   them 28px of padding, a 38px margin and a dashed divider — a lot of empty
+   page for two rows of buttons. */
+.meta-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 32px;
+  padding: 14px 18px;
+  border: 1px solid rgba(62, 88, 128, .2);
+  border-radius: 9px;
+  background: rgba(8, 24, 44, .55);
+}
 .beta-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .beta-tab {
   padding: 9px 16px;
@@ -1876,10 +1969,29 @@ a:hover .entity-cell strong { color: var(--pink-bright); }
 .beta-tab:hover { border-color: rgba(238, 102, 239, .5); color: white; }
 .beta-tab-on { border-color: transparent; color: white; background: var(--pink-bright); }
 
-.beta-deck { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.beta-thumb { position: relative; display: inline-flex; }
-.beta-thumb img { width: 48px; height: 58px; object-fit: contain; }
-.beta-thumb .evo-flag { top: 2px; left: 2px; padding: 1px 4px; font-size: 6px; }
+/* Two rows of four inside the table cell, matching the in-game deck layout. */
+.beta-deck { display: grid; grid-template-columns: repeat(4, 46px); gap: 5px; }
+.beta-thumb { position: relative; display: inline-flex; border-radius: 6px; }
+.beta-thumb img { width: 46px; height: 56px; object-fit: contain; }
+
+/* At 46px there is no room for a legible word, so an evolved card is marked
+   with a cyan ring and a corner dot instead. Same meaning as the EVO pill on
+   the card grid, just readable at this size. */
+.beta-thumb-evo {
+  background: rgba(122, 224, 255, .1);
+  box-shadow: inset 0 0 0 2px #7ae0ff, 0 0 9px rgba(122, 224, 255, .4);
+}
+.evo-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid #04203a;
+  background: linear-gradient(#7ae0ff, #2b8fd6);
+}
 
 .beta-playground { display: grid; gap: 20px; }
 .beta-playground > div {
@@ -2008,7 +2120,7 @@ a:hover .entity-cell strong { color: var(--pink-bright); }
 }
 
 /* --- Meta report --- */
-.card-tile-meta { color: #b9c8e4; font: 8px Arial, sans-serif; }
+.card-tile-meta { color: #b9c8e4; font: 9px Arial, sans-serif; }
 .card-tile:hover .card-tile-meta { color: #ffd2f9; }
 
 .meta-copy {
@@ -2029,11 +2141,14 @@ a:hover .entity-cell strong { color: var(--pink-bright); }
 .meta-copy:hover { border-color: rgba(238, 102, 239, .5); color: white; }
 
 /* Usage reads as a share of all decks, so it gets a bar as well as a number. */
+/* Sits beside the number, not stacked above it — a lone 4px rule floating over
+   the percentage read as a stray underline. */
 .usage-bar {
-  display: block;
-  width: 74px;
-  height: 4px;
-  margin-bottom: 5px;
+  display: inline-block;
+  vertical-align: middle;
+  width: 64px;
+  height: 5px;
+  margin: 0 9px 2px 0;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(62, 88, 128, .34);

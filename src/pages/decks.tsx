@@ -1,5 +1,5 @@
 import Head from "next/head";
-import Image from "next/image";
+import { CardArt } from "@/components/portfolio/CardArt";
 import Link from "next/link";
 import { Check, Copy, LoaderCircle, RefreshCcw, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -123,7 +123,10 @@ function DeckPerformance({ cards }: { cards: Card[] }) {
 
 function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards: Card[]; source: string; onRefresh?: () => void; isRefreshing?: boolean }) {
   const include = useIncludedSlug();
-  const [selected, setSelected] = useState<Card[]>(() => cards.slice(0, 8));
+  // Empty, not the first eight cards of the catalog: that seeded a deck nobody
+  // chose and the panel below then reported it as never seen in the meta — the
+  // first thing a visitor read about a deck they had not built.
+  const [selected, setSelected] = useState<Card[]>([]);
   const [seeded, setSeeded] = useState(false);
   const [search, setSearch] = useState("");
   const [rarity, setRarity] = useState("All");
@@ -200,7 +203,7 @@ function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards
               const card = selected[index];
               return card ? (
                 <button type="button" key={card.name} onClick={() => toggleCard(card)} aria-label={`Remove ${card.name}`}>
-                  <Image src={card.image} alt={card.name} width={82} height={100} /><span>{card.elixir}</span>
+                  <CardArt src={card.image} alt={card.name} width={82} height={100} /><span>{card.elixir}</span>
                 </button>
               ) : <div key={index} className="empty-card"><span>{index + 1}</span></div>;
             })}
@@ -222,7 +225,7 @@ function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards
               return (
                 <button type="button" key={card.name} className={active ? "selected" : ""} onClick={() => toggleCard(card)} aria-pressed={active}>
                   {active ? <Check className="selected-check" size={17} /> : null}
-                  <Image src={card.image} alt={card.name} width={76} height={94} />
+                  <CardArt src={card.image} alt={card.name} width={76} height={94} />
                   <strong>{card.name}</strong><span>{card.rarity} · {card.elixir || "?"}</span>
                 </button>
               );

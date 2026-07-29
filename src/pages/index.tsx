@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { CardArt } from "@/components/portfolio/CardArt";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Crown, RefreshCcw, Swords, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -133,7 +134,8 @@ export default function HomePage() {
 
       <section className="chest-demo page-band">
         <div className="section-title-row">
-          <h2>Chest Timeline</h2>
+          {/* demoPlayer, same as Event Lab — it needs the same disclosure. */}
+          <h2>Chest Timeline <SampleBadge /></h2>
           <button type="button" className="pink-button" onClick={() => playerQuery.refetch()}>Resync</button>
         </div>
         <div className="chest-demo-row">
@@ -419,7 +421,7 @@ function DeckStrip({ cards }: { cards: Card[] }) {
   return (
     <div className="deck-strip">
       {cards.map((card, index) => (
-        <Image key={`${card.name}-${index}`} src={card.image} alt={card.name} width={54} height={66} />
+        <CardArt key={`${card.name}-${index}`} src={card.image} alt={card.name} width={54} height={66} />
       ))}
     </div>
   );

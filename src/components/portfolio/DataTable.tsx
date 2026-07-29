@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { CardArt } from "@/components/portfolio/CardArt";
 import type { ReactNode } from "react";
 
 /** Renders a rank with its movement since the previous ranking snapshot. */
@@ -26,16 +27,30 @@ export function EntityCell({
   href,
   name,
   badge,
+  badgeFallback,
   sub
 }: {
   href?: string;
   name: string;
   badge?: string;
+  /**
+   * Placeholder for a badge URL that 404s. Opt-in, because the right stand-in
+   * differs per entity — a card wants the unknown-card art, a clan wants badge 0.
+   */
+  badgeFallback?: string;
   sub?: ReactNode;
 }) {
+  const art = badge ? (
+    badgeFallback ? (
+      <CardArt src={badge} alt="" width={30} height={36} fallback={badgeFallback} />
+    ) : (
+      <Image src={badge} alt="" width={30} height={36} />
+    )
+  ) : null;
+
   const body = (
     <span className="entity-cell">
-      {badge ? <Image src={badge} alt="" width={30} height={36} /> : null}
+      {art}
       <span>
         <strong>{name}</strong>
         {sub ? <small>{sub}</small> : null}
@@ -51,7 +66,8 @@ export function TableShell({
   head,
   children,
   note,
-  empty
+  empty,
+  emptyMessage
 }: {
   title: string;
   toolbar?: ReactNode;
@@ -59,6 +75,8 @@ export function TableShell({
   children: ReactNode;
   note?: ReactNode;
   empty?: boolean;
+  /** Say *why* the table is empty. "No results." leaves the reader guessing. */
+  emptyMessage?: ReactNode;
 }) {
   return (
     <section className="profile-section member-section">
@@ -67,7 +85,7 @@ export function TableShell({
         {toolbar ? <div className="update-tools">{toolbar}</div> : null}
       </div>
       {empty ? (
-        <p className="empty-results">No results.</p>
+        <p className="empty-results">{emptyMessage ?? "No results."}</p>
       ) : (
         <div className="members-table-wrap">
           <table className="members-table">

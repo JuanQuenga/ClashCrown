@@ -1,19 +1,18 @@
 import Head from "next/head";
 import Image from "next/image";
+import { CardArt } from "@/components/portfolio/CardArt";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useAction } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
 import { ErrorState, LoadingState, SetupState } from "@/components/portfolio/AsyncState";
 import { rarityImage } from "@/lib/clash/assets";
 import { cardSlug, findCardBySlug, relatedCards } from "@/lib/clash/cards";
-import { mapCardList, mapSupportCardList } from "@/lib/clash/mappers";
 import { META_MODES, modeLabel, type MetaMode } from "@/lib/clash/battles";
+import { useCardLibrary } from "@/lib/useCardCatalog";
 import { useCardMeta, DEFAULT_META_MODE } from "@/lib/useCardMeta";
 import type { Card } from "@/lib/mock-data";
-import { cardsAction, errorMessage, isConvexConfigured } from "@/lib/convex";
+import { errorMessage, isConvexConfigured } from "@/lib/convex";
 
 export default function CardDetailPage() {
   const router = useRouter();
@@ -37,38 +36,29 @@ export default function CardDetailPage() {
 }
 
 function CardDetail({ slug }: { slug: string }) {
-  const getCards = useAction(cardsAction);
-  const query = useQuery({
-    queryKey: ["card-library"],
-    queryFn: async () => {
-      const payload = await getCards({});
-      return {
-        cards: mapCardList(payload.cards.data),
-        towerTroops: mapSupportCardList(payload.cards.data)
-      };
-    },
-    staleTime: 60 * 60 * 1000,
-    retry: false
-  });
+  const library = useCardLibrary();
 
-  const all = useMemo(() => [...(query.data?.cards ?? []), ...(query.data?.towerTroops ?? [])], [query.data]);
+  const all = useMemo(
+    () => [...library.cards, ...library.towerTroops],
+    [library.cards, library.towerTroops]
+  );
   const card = useMemo(() => findCardBySlug(all, slug), [all, slug]);
-  const related = useMemo(() => (card ? relatedCards(query.data?.cards ?? [], card) : []), [query.data, card]);
+  const related = useMemo(() => (card ? relatedCards(library.cards, card) : []), [library.cards, card]);
 
   const [mode, setMode] = useState<MetaMode>(DEFAULT_META_MODE);
   const meta = useCardMeta(mode);
 
-  if (query.isLoading) {
+  if (library.isLoading) {
     return (
       <Layout>
         <LoadingState label="card" />
       </Layout>
     );
   }
-  if (query.error) {
+  if (library.error) {
     return (
       <Layout>
-        <ErrorState message={errorMessage(query.error)} />
+        <ErrorState message={errorMessage(library.error)} />
       </Layout>
     );
   }
@@ -90,7 +80,7 @@ function CardDetail({ slug }: { slug: string }) {
       </Head>
       <div className="profile-page">
         <section className="card-detail-hero">
-          <Image src={card.image} alt={card.name} width={180} height={220} priority />
+          <CardArt src={card.image} alt={card.name} width={180} height={220} priority />
           <div>
             <span className="eyebrow">
               <Link href="/cards">← All cards</Link>
@@ -205,7 +195,7 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub: st
 function RelatedTile({ card }: { card: Card }) {
   return (
     <Link href={`/cards/${cardSlug(card.name)}`} className="card-tile">
-      <Image src={card.image} alt={card.name} width={76} height={94} />
+      <CardArt src={card.image} alt={card.name} width={76} height={94} />
       <strong>{card.name}</strong>
       <span>
         {card.rarity} · {card.elixir || "?"}

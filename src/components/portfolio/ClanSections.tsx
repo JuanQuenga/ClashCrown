@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { RefreshCcw, Swords, User } from "lucide-react";
 import { RankCell } from "@/components/portfolio/DataTable";
+import { relativeTime } from "@/lib/clash/format";
 import type { Clan } from "@/lib/mock-data";
 
 export function ClanProfile({ clan }: { clan: Clan }) {
@@ -57,7 +58,10 @@ export function MemberTable({ clan, onRefresh, isRefreshing }: { clan: Clan; onR
             <tr>
               <th>Rank</th>
               <th>Name</th>
-              <th>Level</th>
+              {/* Not "Level": /clans returns expLevel: 0 for every member, so
+                  the column was fifty identical zeroes. lastSeen is populated
+                  and is the field a leader actually reads down the roster. */}
+              <th>Last seen</th>
               <th>Trophies</th>
               <th>Donations</th>
               <th>Received</th>
@@ -69,7 +73,7 @@ export function MemberTable({ clan, onRefresh, isRefreshing }: { clan: Clan; onR
               <tr key={member.tag ?? member.name}>
                 <td><RankCell rank={member.rank ?? index + 1} previousRank={member.previousRank} /></td>
                 <td>{member.tag ? <Link href={`/players/${member.tag}`}><strong>{member.name}</strong></Link> : <strong>{member.name}</strong>}</td>
-                <td><span className="table-level">{member.level ?? "—"}</span></td>
+                <td><span className="table-lastseen">{relativeTime(member.lastSeen)}</span></td>
                 <td><Image src="/images/icons/trophy.png" alt="" width={25} height={25} /> <strong>{member.trophies}</strong></td>
                 <td><Image src="/images/icons/book.png" alt="" width={22} height={25} />{member.donations}</td>
                 <td>{member.donationsReceived ?? "—"}</td>

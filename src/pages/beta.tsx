@@ -1,19 +1,17 @@
 import Head from "next/head";
-import Image from "next/image";
-import { FormEvent, useMemo, useState } from "react";
-import { useQuery as useCachedQuery } from "@tanstack/react-query";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { CardArt } from "@/components/portfolio/CardArt";
+import { FormEvent, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
 import { SetupState } from "@/components/portfolio/AsyncState";
 import { EntityCell, RankCell, TableShell, TrophyCell } from "@/components/portfolio/DataTable";
 import { META_MODES, modeLabel, type MetaMode } from "@/lib/clash/battles";
 import { cardSlug } from "@/lib/clash/cards";
-import { mapCardList } from "@/lib/clash/mappers";
 import { UNKNOWN_CARD_IMAGE } from "@/lib/clash/assets";
+import { useCardCatalog } from "@/lib/useCardCatalog";
 import type { Card } from "@/lib/mock-data";
 import type { PipelineRun, PipelineStatusPayload } from "@/lib/clash/types";
 import {
-  cardsAction,
   isConvexConfigured,
   pipelineStatusQuery,
   seedTagMutation,
@@ -52,20 +50,8 @@ function Beta() {
   const cards = useQuery(topCardsQuery, { mode, windowDays, limit: 24 });
 
   // The catalog is only needed to turn card ids into art, so it goes through
-  // the same cached action the rest of the site uses.
-  const getCards = useAction(cardsAction);
-  const catalog = useCachedQuery({
-    queryKey: ["card-library"],
-    queryFn: async () => mapCardList((await getCards({})).cards.data),
-    staleTime: 60 * 60 * 1000,
-    retry: false
-  });
-
-  const byId = useMemo(() => {
-    const map = new Map<number, Card>();
-    for (const card of catalog.data ?? []) if (typeof card.id === "number") map.set(card.id, card);
-    return map;
-  }, [catalog.data]);
+  // the same shared query the rest of the site uses.
+  const byId = useCardCatalog();
 
   return (
     <Layout>
@@ -246,9 +232,9 @@ function pct(value: number) {
 
 function CardThumb({ card, id, evolved }: { card?: Card; id: number; evolved?: boolean }) {
   return (
-    <span className="beta-thumb" title={card?.name ?? `Card ${id}`}>
-      {evolved ? <i className="evo-flag">EVO</i> : null}
-      <Image src={card?.image ?? UNKNOWN_CARD_IMAGE} alt={card?.name ?? `Card ${id}`} width={48} height={58} />
+    <span className={evolved ? "beta-thumb beta-thumb-evo" : "beta-thumb"} title={card?.name ?? `Card ${id}`}>
+      {evolved ? <i className="evo-dot" aria-hidden="true" /> : null}
+      <CardArt src={card?.image ?? UNKNOWN_CARD_IMAGE} alt={card?.name ?? `Card ${id}`} width={46} height={56} />
     </span>
   );
 }
@@ -371,6 +357,7 @@ function TopCards({
                 href={card ? `/cards/${cardSlug(card.name)}` : undefined}
                 name={card?.name ?? `Card ${row.cardId}`}
                 badge={card?.image ?? UNKNOWN_CARD_IMAGE}
+                badgeFallback={UNKNOWN_CARD_IMAGE}
                 sub={card ? `${card.rarity} · ${card.elixir} elixir` : "Not in the catalog"}
               />
             </td>

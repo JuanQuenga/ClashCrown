@@ -61,7 +61,12 @@ function Tournaments() {
         {globalQuery.isLoading ? <LoadingState label="tournaments" /> : null}
         {globalQuery.error ? <ErrorState message={errorMessage(globalQuery.error)} /> : null}
         {globalQuery.data ? (
-          <TournamentTable title="Global Tournaments" rows={globalQuery.data} note="Run by Supercell, roughly twice a month." />
+          <TournamentTable
+            title="Global Tournaments"
+            rows={globalQuery.data}
+            note={globalQuery.data.length ? "Run by Supercell, roughly twice a month." : undefined}
+            emptyMessage="No Global Tournament is running right now. Supercell starts one roughly twice a month — search below for a community tournament you can join in the meantime."
+          />
         ) : null}
 
         <section className="profile-section">
@@ -84,19 +89,36 @@ function Tournaments() {
 
         {searchQuery.isLoading && term.length >= 3 ? <LoadingState label="tournaments" /> : null}
         {searchQuery.error ? <ErrorState message={errorMessage(searchQuery.error)} /> : null}
-        {searchQuery.data ? <TournamentTable title="Search results" rows={searchQuery.data} /> : null}
+        {searchQuery.data ? (
+          <TournamentTable
+            title="Search results"
+            rows={searchQuery.data}
+            emptyMessage={`No open tournament matches “${term}”. The API only returns tournaments that are still accepting players, so a full or finished one will not show up here.`}
+          />
+        ) : null}
       </div>
     </Layout>
   );
 }
 
-function TournamentTable({ title, rows, note }: { title: string; rows: ApiTournament[]; note?: string }) {
+function TournamentTable({
+  title,
+  rows,
+  note,
+  emptyMessage
+}: {
+  title: string;
+  rows: ApiTournament[];
+  note?: string;
+  emptyMessage?: string;
+}) {
   return (
     <TableShell
       title={title}
       head={["Name", "Status", "Players", "Level cap", "Starts", "Prize"]}
       empty={!rows.length}
       note={note}
+      emptyMessage={emptyMessage}
     >
       {rows.map((tournament) => (
         <tr key={tournament.tag}>

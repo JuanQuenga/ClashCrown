@@ -1,17 +1,15 @@
 import Head from "next/head";
-import Image from "next/image";
+import { CardArt } from "@/components/portfolio/CardArt";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useAction } from "convex/react";
 import { Search } from "lucide-react";
 import { Layout } from "@/components/portfolio/Layout";
 import { ErrorState, LoadingState, SetupState } from "@/components/portfolio/AsyncState";
 import { cardSlug } from "@/lib/clash/cards";
-import { mapCardList, mapSupportCardList } from "@/lib/clash/mappers";
 import type { Card } from "@/lib/mock-data";
-import { cardsAction, errorMessage, isConvexConfigured } from "@/lib/convex";
+import { errorMessage, isConvexConfigured } from "@/lib/convex";
 import { modeLabel } from "@/lib/clash/battles";
+import { useCardLibrary } from "@/lib/useCardCatalog";
 import { useCardMeta, type CardMeta } from "@/lib/useCardMeta";
 
 const RARITIES = ["All", "Common", "Rare", "Epic", "Legendary", "Champion"] as const;
@@ -30,28 +28,15 @@ export default function CardsPage() {
 }
 
 function CardLibrary() {
-  const getCards = useAction(cardsAction);
   const [search, setSearch] = useState("");
   const [rarity, setRarity] = useState<(typeof RARITIES)[number]>("All");
   const [showTowerTroops, setShowTowerTroops] = useState(false);
   const [sort, setSort] = useState<Sort>("Most played");
 
   const meta = useCardMeta();
+  const library = useCardLibrary();
 
-  const query = useQuery({
-    queryKey: ["card-library"],
-    queryFn: async () => {
-      const payload = await getCards({});
-      return {
-        cards: mapCardList(payload.cards.data),
-        towerTroops: mapSupportCardList(payload.cards.data)
-      };
-    },
-    staleTime: 60 * 60 * 1000,
-    retry: false
-  });
-
-  const source = showTowerTroops ? query.data?.towerTroops ?? [] : query.data?.cards ?? [];
+  const source = showTowerTroops ? library.towerTroops : library.cards;
 
   const filtered = useMemo(() => {
     const matches = source.filter((card) => {
@@ -71,19 +56,19 @@ function CardLibrary() {
     return ranked;
   }, [source, rarity, search, sort, meta.byId]);
 
-  const evolutions = useMemo(() => (query.data?.cards ?? []).filter((card) => card.canEvolve).length, [query.data]);
+  const evolutions = useMemo(() => library.cards.filter((card) => card.canEvolve).length, [library.cards]);
 
-  if (query.isLoading) {
+  if (library.isLoading) {
     return (
       <Layout>
         <LoadingState label="cards" />
       </Layout>
     );
   }
-  if (query.error) {
+  if (library.error) {
     return (
       <Layout>
-        <ErrorState message={errorMessage(query.error)} />
+        <ErrorState message={errorMessage(library.error)} />
       </Layout>
     );
   }
@@ -99,7 +84,7 @@ function CardLibrary() {
           <span className="eyebrow">Live Clash Royale card catalog</span>
           <h1>Cards</h1>
           <p>
-            {query.data?.cards.length ?? 0} cards · {evolutions} with Evolutions · {query.data?.towerTroops.length ?? 0} Tower
+            {library.cards.length} cards · {evolutions} with Evolutions · {library.towerTroops.length} Tower
             Troops
           </p>
         </section>
@@ -131,8 +116,13 @@ function CardLibrary() {
                 ))}
               </select>
             </label>
-            <button type="button" className={showTowerTroops ? "pink-button" : ""} onClick={() => setShowTowerTroops((v) => !v)}>
-              {showTowerTroops ? "Showing Tower Troops" : "Show Tower Troops"}
+            <button
+              type="button"
+              className={showTowerTroops ? "toolbar-toggle toolbar-toggle-on" : "toolbar-toggle"}
+              aria-pressed={showTowerTroops}
+              onClick={() => setShowTowerTroops((v) => !v)}
+            >
+              Tower Troops
             </button>
           </div>
 
@@ -166,7 +156,7 @@ function CardTile({ card, meta }: { card: Card; meta?: CardMeta }) {
   return (
     <Link href={`/cards/${cardSlug(card.name)}`} className="card-tile">
       {card.canEvolve ? <span className="evo-flag">EVO</span> : null}
-      <Image src={card.image} alt={card.name} width={76} height={94} />
+      <CardArt src={card.image} alt={card.name} width={76} height={94} />
       <strong>{card.name}</strong>
       <span>
         {card.rarity} · {card.elixir || "?"}

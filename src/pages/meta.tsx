@@ -1,5 +1,5 @@
 import Head from "next/head";
-import Image from "next/image";
+import { CardArt } from "@/components/portfolio/CardArt";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "convex/react";
@@ -70,34 +70,32 @@ function MetaReport() {
           </p>
         </section>
 
-        <section className="profile-section">
-          <div className="beta-controls">
-            <div className="beta-tabs" role="group" aria-label="Battle mode">
-              {META_MODES.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={item === mode ? "beta-tab beta-tab-on" : "beta-tab"}
-                  onClick={() => setMode(item)}
-                >
-                  {modeLabel(item)}
-                </button>
-              ))}
-            </div>
-            <div className="beta-tabs" role="group" aria-label="Time window">
-              {WINDOWS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={item === windowDays ? "beta-tab beta-tab-on" : "beta-tab"}
-                  onClick={() => setWindowDays(item)}
-                >
-                  {item === 1 ? "24 hours" : "7 days"}
-                </button>
-              ))}
-            </div>
+        <div className="meta-controls">
+          <div className="beta-tabs" role="group" aria-label="Battle mode">
+            {META_MODES.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={item === mode ? "beta-tab beta-tab-on" : "beta-tab"}
+                onClick={() => setMode(item)}
+              >
+                {modeLabel(item)}
+              </button>
+            ))}
           </div>
-        </section>
+          <div className="beta-tabs" role="group" aria-label="Time window">
+            {WINDOWS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={item === windowDays ? "beta-tab beta-tab-on" : "beta-tab"}
+                onClick={() => setWindowDays(item)}
+              >
+                {item === 1 ? "24 hours" : "7 days"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <TopDecks decks={decks?.decks} byId={byId} mode={mode} windowDays={windowDays} />
         <TopCards cards={cards?.cards} sample={sample} byId={byId} mode={mode} windowDays={windowDays} />
@@ -118,10 +116,11 @@ function rateClass(value: number) {
 }
 
 function CardThumb({ card, id, evolved }: { card?: Card; id: number; evolved?: boolean }) {
+  const name = card?.name ?? `Card ${id}`;
   return (
-    <span className="beta-thumb" title={card?.name ?? `Card ${id}`}>
-      {evolved ? <i className="evo-flag">EVO</i> : null}
-      <Image src={card?.image ?? UNKNOWN_CARD_IMAGE} alt={card?.name ?? `Card ${id}`} width={48} height={58} />
+    <span className={evolved ? "beta-thumb beta-thumb-evo" : "beta-thumb"} title={evolved ? `${name} (Evolution)` : name}>
+      {evolved ? <i className="evo-dot" aria-hidden="true" /> : null}
+      <CardArt src={card?.image ?? UNKNOWN_CARD_IMAGE} alt={name} width={46} height={56} />
     </span>
   );
 }
@@ -285,6 +284,7 @@ function TopCards({
                 href={card ? `/cards/${cardSlug(card.name)}` : undefined}
                 name={card?.name ?? `Card ${row.cardId}`}
                 badge={card?.image ?? UNKNOWN_CARD_IMAGE}
+                badgeFallback={UNKNOWN_CARD_IMAGE}
                 sub={card ? `${card.rarity} · ${card.elixir} elixir` : "Not in the catalog"}
               />
             </td>
