@@ -152,5 +152,31 @@ export default defineSchema({
     name: v.string(),
     value: v.number(),
     updatedAt: v.number()
-  }).index("by_name", ["name"])
+  }).index("by_name", ["name"]),
+
+  /**
+   * Name → tag directory, so people can search for a player by name.
+   *
+   * The official API has no player search — lookup is exact-tag only — so the
+   * only honest way to offer one is to remember every (name, tag) pair the site
+   * already sees: leaderboard entries, clan rosters, both sides of every battle
+   * the crawler reads, and any profile somebody looks up. Nothing here is
+   * fetched for its own sake; it is a byproduct of requests already being made.
+   */
+  playerDirectory: defineTable({
+    tag: v.string(),
+    name: v.string(),
+    /** Exact-match lane for "I typed my name exactly"; the search index is fuzzy. */
+    nameLower: v.string(),
+    clanTag: v.optional(v.string()),
+    clanName: v.optional(v.string()),
+    trophies: v.optional(v.number()),
+    /** Distinct sightings. Names are not unique, so this ranks the collisions. */
+    sightings: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_tag", ["tag"])
+    .index("by_name_lower", ["nameLower"])
+    .index("by_updated_at", ["updatedAt"])
+    .searchIndex("search_name", { searchField: "name" })
 });

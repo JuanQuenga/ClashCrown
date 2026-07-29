@@ -1,5 +1,6 @@
 import Head from "next/head";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import { useAction } from "convex/react";
 import { Search } from "lucide-react";
@@ -23,9 +24,19 @@ export default function ClanSearchPage() {
 }
 
 function ClanSearch() {
+  const router = useRouter();
   const searchClans = useAction(searchClansAction);
   const [draft, setDraft] = useState<Filters>({ name: "" });
   const [submitted, setSubmitted] = useState<Filters | null>(null);
+
+  // `/clans/search?name=…` is where the site-wide search box sends a clan name,
+  // so arriving with one should run the search rather than just prefill it.
+  const seed = typeof router.query.name === "string" ? router.query.name.trim() : "";
+  useEffect(() => {
+    if (!router.isReady || !seed) return;
+    setDraft({ name: seed });
+    setSubmitted({ name: seed });
+  }, [router.isReady, seed]);
 
   const query = useQuery({
     queryKey: ["clan-search", submitted],

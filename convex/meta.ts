@@ -29,7 +29,7 @@ const observation = v.object({
   opponentCrowns: v.number()
 });
 
-async function bump(ctx: MutationCtx, name: string, delta: number) {
+export async function bump(ctx: MutationCtx, name: string, delta: number) {
   if (!delta) return;
   const existing = await ctx.db
     .query("pipelineCounters")
@@ -462,6 +462,42 @@ export const topCards = query({
       .slice(0, Math.min(args.limit ?? 40, 200));
 
     return { windowDays, decksObserved, cards };
+  }
+});
+
+/**
+ * Stats for one specific deck, by hash. `by_day_and_mode_and_deck` makes this a
+ * single point read per day, so the deck builder can price an arbitrary
+ * eight-card selection rather than only the decks that made the top-100 board.
+ */
+export const deckMeta = query({
+  args: { deckHash: v.string(), mode: metaMode, windowDays: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const windowDays = Math.min(Math.max(args.windowDays ?? 7, 1), RETENTION_DAYS);
+    let uses = 0;
+    let wins = 0;
+    let crowns = 0;
+
+    for (const day of dayKeysBack(windowDays)) {
+      const row = await ctx.db
+        .query("deckStats")
+        .withIndex("by_day_and_mode_and_deck", (q) =>
+          q.eq("day", day).eq("mode", args.mode).eq("deckHash", args.deckHash)
+        )
+        .unique();
+      if (!row) continue;
+      uses += row.uses;
+      wins += row.wins;
+      crowns += row.crowns;
+    }
+
+    return {
+      windowDays,
+      uses,
+      wins,
+      winRate: uses ? wins / uses : 0,
+      crownsPerGame: uses ? crowns / uses : 0
+    };
   }
 });
 

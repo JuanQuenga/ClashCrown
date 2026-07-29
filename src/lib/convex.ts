@@ -4,11 +4,13 @@ import type {
   ClanBundlePayload,
   ClanSearchPayload,
   ClanWarPayload,
+  DeckMetaPayload,
   LeaderboardListPayload,
   LeaderboardPayload,
   LocationsPayload,
   PipelineStatusPayload,
   PlayerBundlePayload,
+  PlayerSearchPayload,
   RankingKind,
   RankingsPayload,
   TopCardsPayload,
@@ -93,6 +95,24 @@ export const topCardsQuery = makeFunctionReference<
   { mode: MetaMode; windowDays?: number; limit?: number },
   TopCardsPayload
 >("meta:topCards");
+
+export const deckMetaQuery = makeFunctionReference<
+  "query",
+  { deckHash: string; mode: MetaMode; windowDays?: number },
+  DeckMetaPayload
+>("meta:deckMeta");
+
+// --- Player name directory ------------------------------------------------
+
+export const searchPlayersQuery = makeFunctionReference<
+  "query",
+  { query: string; limit?: number },
+  PlayerSearchPayload
+>("players:search");
+
+export const directorySizeQuery = makeFunctionReference<"query", Record<string, never>, number>(
+  "players:directorySize"
+);
 
 export const seedTagMutation = makeFunctionReference<
   "mutation",

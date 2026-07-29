@@ -3,7 +3,14 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Crown, RefreshCcw, Swords, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { DemoSearch, Layout } from "@/components/portfolio/Layout";
+import { useQuery as useConvexQuery } from "convex/react";
+import { Layout } from "@/components/portfolio/Layout";
+import { ProfileSearch } from "@/components/portfolio/ProfileSearch";
+import { modeLabel, type MetaMode } from "@/lib/clash/battles";
+import { cardSlug } from "@/lib/clash/cards";
+import { averageElixir, copyDeckLink, UNKNOWN_CARD_IMAGE } from "@/lib/clash/assets";
+import { useCardCatalog } from "@/lib/useCardCatalog";
+import { isConvexConfigured, topCardsQuery, topDecksQuery } from "@/lib/convex";
 import { demoDecks, demoEvents, player, type Card, type Player } from "@/lib/mock-data";
 
 const heroes = [
@@ -14,9 +21,7 @@ const heroes = [
 
 export default function HomePage() {
   const [activeHero, setActiveHero] = useState(0);
-  const [activeDeck, setActiveDeck] = useState(0);
   const [battleIndex, setBattleIndex] = useState(0);
-  const [archetype, setArchetype] = useState<"All" | "Control" | "Cycle" | "Beatdown" | "Bait">("All");
 
   const playerQuery = useQuery<Player>({
     queryKey: ["demo-player", "home"],
@@ -29,11 +34,6 @@ export default function HomePage() {
   });
 
   const demoPlayer = playerQuery.data;
-  const filteredDecks = useMemo(
-    () => demoDecks.filter((deck) => archetype === "All" || deck.archetype === archetype),
-    [archetype]
-  );
-  const selectedDeck = filteredDecks[Math.min(activeDeck, filteredDecks.length - 1)] ?? demoDecks[0];
   const selectedBattle = demoPlayer.battles[battleIndex % demoPlayer.battles.length];
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function HomePage() {
     <Layout variant="home">
       <section className="home-hero">
         <h1>Track Your Clash Royale<br />Stats and Chests</h1>
-        <DemoSearch />
+        <ProfileSearch />
         <div className="hero-cards">
           {heroes.map((hero, index) => (
             <button
@@ -109,48 +109,7 @@ export default function HomePage() {
         <Image src="/images/art/mirror-battle-week.png" alt="Mirror Battle Week" width={365} height={190} />
       </section>
 
-      <section className="deck-day page-band">
-        <div className="section-title-row">
-          <h2>Deck of the day <SampleBadge /></h2>
-          <Link href="/decks" className="pink-button">Open the deck builder</Link>
-        </div>
-        <div className="archetype-tabs" aria-label="Deck archetype filters">
-          {["All", "Control", "Cycle", "Beatdown", "Bait"].map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={archetype === item ? "active" : ""}
-              onClick={() => {
-                setArchetype(item as typeof archetype);
-                setActiveDeck(0);
-              }}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <div className="deck-row">
-          <div className="elixir-pill">
-            <Image src="/images/icons/elixir.png" alt="" width={26} height={26} />
-            <strong>{selectedDeck.cost.toFixed(1)} elixir<span>average cost</span></strong>
-          </div>
-          <DeckStrip cards={selectedDeck.cards} />
-          <button type="button" className="copy-deck" onClick={() => setActiveDeck((index) => (index + 1) % filteredDecks.length)}>
-            <Image src="/images/icons/copy.png" alt="" width={26} height={28} />
-            Swap Deck
-          </button>
-        </div>
-        <div className="deck-demo-copy">
-          <strong>{selectedDeck.name}</strong>
-          <span>{selectedDeck.spotlight}</span>
-        </div>
-        <div className="deck-metrics">
-          <strong>{selectedDeck.winRate.toFixed(1)}%<span>deck win rate</span></strong>
-          <strong>{selectedDeck.usage.toFixed(1)}%<span>usage rate</span></strong>
-          <strong>{selectedDeck.crowns.toFixed(2)}<span>crowns per game</span></strong>
-        </div>
-        <Pager onPrevious={() => setActiveDeck((index) => (index + filteredDecks.length - 1) % filteredDecks.length)} onNext={() => setActiveDeck((index) => (index + 1) % filteredDecks.length)} />
-      </section>
+      {isConvexConfigured ? <MetaDeckOfTheDay /> : <SampleDeckOfTheDay />}
 
       <section className="event-lab page-band">
         <div className="section-title-row">
@@ -188,24 +147,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="popular page-band">
-        <div className="section-title-row">
-          <h2>Popular Cards <SampleBadge /></h2>
-          <Link href="/cards" className="pink-button">Browse the card library</Link>
-        </div>
-        <div className="popular-grid">
-          <SparkChart color="pink" label="Winrate" value="—" delta="sample" />
-          <div className="popular-card-center">
-            <Image src="/images/cards/three-musketeers.png" alt="Three Musketeers" width={96} height={120} />
-            <strong>Three Musketeers</strong>
-          </div>
-          <SparkChart color="blue" label="Usage" value="—" delta="sample" />
-        </div>
-        <p className="table-note">
-          Win-rate and usage statistics need an aggregated battle history. The official API only exposes battles per
-          player, so Clash Crown does not publish numbers it cannot source.
-        </p>
-      </section>
+      {isConvexConfigured ? <MetaPopularCards /> : <SamplePopularCards />}
     </Layout>
   );
 }
@@ -213,6 +155,243 @@ export default function HomePage() {
 /** Marks a section that renders curated sample data rather than live API results. */
 function SampleBadge() {
   return <span className="sample-badge">Sample</span>;
+}
+
+// --- Live meta sections ---------------------------------------------------
+
+/**
+ * The home page's two statistics sections read the same aggregates as `/meta`.
+ * Both are split into a live and a sample component: the live half needs the
+ * Convex provider, which `_app.tsx` only mounts when a deployment is
+ * configured, so the branch has to happen above the hooks.
+ */
+
+/** Modes deep enough in the crawl to headline the home page. */
+const HOME_MODES: MetaMode[] = ["pathOfLegends", "ladder", "clanWar"];
+const HOME_WINDOW_DAYS = 7;
+
+function MetaDeckOfTheDay() {
+  const [mode, setMode] = useState<MetaMode>("pathOfLegends");
+  const [index, setIndex] = useState(0);
+  const byId = useCardCatalog();
+  const payload = useConvexQuery(topDecksQuery, { mode, windowDays: HOME_WINDOW_DAYS, limit: 10 });
+
+  const decks = payload?.decks ?? [];
+  const deck = decks[Math.min(index, Math.max(decks.length - 1, 0))];
+  const cards = useMemo(
+    () => (deck?.cardIds ?? []).map((id) => byId.get(id) ?? unknownCard(id)),
+    [deck?.cardIds, byId]
+  );
+
+  const elixir = averageElixir(cards.map((card) => ({ elixirCost: card.elixir })));
+  const link = deck ? copyDeckLink(deck.cardIds) : undefined;
+
+  function step(offset: number) {
+    if (!decks.length) return;
+    setIndex((current) => (current + offset + decks.length) % decks.length);
+  }
+
+  return (
+    <section className="deck-day page-band">
+      <div className="section-title-row">
+        <h2>Deck of the day</h2>
+        <Link href="/meta" className="pink-button">See the full meta</Link>
+      </div>
+      <div className="archetype-tabs" aria-label="Battle mode">
+        {HOME_MODES.map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={mode === item ? "active" : ""}
+            onClick={() => {
+              setMode(item);
+              setIndex(0);
+            }}
+          >
+            {modeLabel(item)}
+          </button>
+        ))}
+      </div>
+
+      {!deck ? (
+        <p className="table-note">
+          {payload
+            ? `No ${modeLabel(mode)} decks have been observed often enough in the last ${HOME_WINDOW_DAYS} days to rank.`
+            : "Loading the latest deck statistics…"}
+        </p>
+      ) : (
+        <>
+          <div className="deck-row">
+            <div className="elixir-pill">
+              <Image src="/images/icons/elixir.png" alt="" width={26} height={26} />
+              <strong>
+                {elixir ? elixir.toFixed(1) : "—"} elixir<span>average cost</span>
+              </strong>
+            </div>
+            <DeckStrip cards={cards} />
+            {link ? (
+              <a className="copy-deck" href={link} target="_blank" rel="noopener noreferrer">
+                <Image src="/images/icons/copy.png" alt="" width={26} height={28} />
+                Copy Deck
+              </a>
+            ) : null}
+          </div>
+          <div className="deck-demo-copy">
+            <strong>#{deck.rank} in {modeLabel(mode)}</strong>
+            <span>
+              Seen {deck.uses.toLocaleString()} times in the last {HOME_WINDOW_DAYS} days of crawled battle logs.
+            </span>
+          </div>
+          <div className="deck-metrics">
+            <strong>{(deck.winRate * 100).toFixed(1)}%<span>deck win rate</span></strong>
+            <strong>{(deck.usageRate * 100).toFixed(1)}%<span>usage rate</span></strong>
+            <strong>{deck.uses.toLocaleString()}<span>games observed</span></strong>
+          </div>
+          <Pager onPrevious={() => step(-1)} onNext={() => step(1)} />
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Placeholder so a missing card id still renders a slot instead of collapsing the strip. */
+function unknownCard(id: number): Card {
+  return { id, name: `Card ${id}`, elixir: 0, rarity: "Common", image: UNKNOWN_CARD_IMAGE };
+}
+
+function MetaPopularCards() {
+  const byId = useCardCatalog();
+  const payload = useConvexQuery(topCardsQuery, {
+    mode: "pathOfLegends",
+    windowDays: HOME_WINDOW_DAYS,
+    limit: 1
+  });
+
+  const top = payload?.cards[0];
+  const card = top ? byId.get(top.cardId) : undefined;
+
+  return (
+    <section className="popular page-band">
+      <div className="section-title-row">
+        <h2>Most played card</h2>
+        <Link href="/meta" className="pink-button">Card and deck rankings</Link>
+      </div>
+      <div className="popular-grid">
+        <SparkChart
+          color="pink"
+          label="Winrate"
+          value={top ? `${(top.winRate * 100).toFixed(1)}%` : "—"}
+          delta={top ? `${top.uses.toLocaleString()} games` : "waiting on data"}
+        />
+        <div className="popular-card-center">
+          <Image
+            src={card?.image ?? UNKNOWN_CARD_IMAGE}
+            alt={card?.name ?? "Most played card"}
+            width={96}
+            height={120}
+          />
+          {card ? (
+            <Link href={`/cards/${cardSlug(card.name)}`}>
+              <strong>{card.name}</strong>
+            </Link>
+          ) : (
+            <strong>{top ? `Card ${top.cardId}` : "—"}</strong>
+          )}
+        </div>
+        <SparkChart
+          color="blue"
+          label="Usage"
+          value={top ? `${(top.usageRate * 100).toFixed(1)}%` : "—"}
+          delta={top ? "of decks seen" : "waiting on data"}
+        />
+      </div>
+      <p className="table-note">
+        {payload
+          ? `From ${Math.round(payload.decksObserved).toLocaleString()} decks observed in Path of Legends over the last ${HOME_WINDOW_DAYS} days. The official API publishes no statistics — these are counted from crawled battle logs.`
+          : "Loading card statistics…"}
+      </p>
+    </section>
+  );
+}
+
+// --- Sample fallbacks (no Convex deployment configured) -------------------
+
+function SampleDeckOfTheDay() {
+  const [activeDeck, setActiveDeck] = useState(0);
+  const [archetype, setArchetype] = useState<"All" | "Control" | "Cycle" | "Beatdown" | "Bait">("All");
+
+  const filteredDecks = useMemo(
+    () => demoDecks.filter((deck) => archetype === "All" || deck.archetype === archetype),
+    [archetype]
+  );
+  const selectedDeck = filteredDecks[Math.min(activeDeck, filteredDecks.length - 1)] ?? demoDecks[0];
+
+  return (
+    <section className="deck-day page-band">
+      <div className="section-title-row">
+        <h2>Deck of the day <SampleBadge /></h2>
+        <Link href="/decks" className="pink-button">Open the deck builder</Link>
+      </div>
+      <div className="archetype-tabs" aria-label="Deck archetype filters">
+        {["All", "Control", "Cycle", "Beatdown", "Bait"].map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={archetype === item ? "active" : ""}
+            onClick={() => {
+              setArchetype(item as typeof archetype);
+              setActiveDeck(0);
+            }}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+      <div className="deck-row">
+        <div className="elixir-pill">
+          <Image src="/images/icons/elixir.png" alt="" width={26} height={26} />
+          <strong>{selectedDeck.cost.toFixed(1)} elixir<span>average cost</span></strong>
+        </div>
+        <DeckStrip cards={selectedDeck.cards} />
+        <button type="button" className="copy-deck" onClick={() => setActiveDeck((index) => (index + 1) % filteredDecks.length)}>
+          <Image src="/images/icons/copy.png" alt="" width={26} height={28} />
+          Swap Deck
+        </button>
+      </div>
+      <div className="deck-demo-copy">
+        <strong>{selectedDeck.name}</strong>
+        <span>{selectedDeck.spotlight}</span>
+      </div>
+      <div className="deck-metrics">
+        <strong>{selectedDeck.winRate.toFixed(1)}%<span>deck win rate</span></strong>
+        <strong>{selectedDeck.usage.toFixed(1)}%<span>usage rate</span></strong>
+        <strong>{selectedDeck.crowns.toFixed(2)}<span>crowns per game</span></strong>
+      </div>
+      <Pager onPrevious={() => setActiveDeck((index) => (index + filteredDecks.length - 1) % filteredDecks.length)} onNext={() => setActiveDeck((index) => (index + 1) % filteredDecks.length)} />
+    </section>
+  );
+}
+
+function SamplePopularCards() {
+  return (
+    <section className="popular page-band">
+      <div className="section-title-row">
+        <h2>Popular Cards <SampleBadge /></h2>
+        <Link href="/cards" className="pink-button">Browse the card library</Link>
+      </div>
+      <div className="popular-grid">
+        <SparkChart color="pink" label="Winrate" value="—" delta="sample" />
+        <div className="popular-card-center">
+          <Image src="/images/cards/three-musketeers.png" alt="Three Musketeers" width={96} height={120} />
+          <strong>Three Musketeers</strong>
+        </div>
+        <SparkChart color="blue" label="Usage" value="—" delta="sample" />
+      </div>
+      <p className="table-note">
+        Win-rate and usage statistics come from the battle-log pipeline, which needs a configured Convex deployment.
+      </p>
+    </section>
+  );
 }
 
 function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {

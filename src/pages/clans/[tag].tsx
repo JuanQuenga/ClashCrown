@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAction } from "convex/react";
 import { ClanChestProgress, ClanProfile, MemberTable } from "@/components/portfolio/ClanSections";
@@ -9,6 +9,7 @@ import { Layout } from "@/components/portfolio/Layout";
 import { clan as mockClan, type Clan } from "@/lib/mock-data";
 import { clanBundleAction, errorMessage, isConvexConfigured } from "@/lib/convex";
 import { mapClanBundle } from "@/lib/clash/mappers";
+import { rememberProfile } from "@/lib/recentProfiles";
 
 export default function ClanPage() {
   const router = useRouter();
@@ -37,7 +38,9 @@ function LiveClan({ tag }: { tag: string }) {
 }
 
 function ClanDashboard({ clan, isRefreshing = false, onRefresh = () => undefined }: { clan: Clan; isRefreshing?: boolean; onRefresh?: () => void }) {
-
+  useEffect(() => {
+    if (clan.tag) rememberProfile({ kind: "clans", tag: clan.tag.replace(/^#/, ""), name: clan.name });
+  }, [clan.tag, clan.name]);
 
   return (
     <Layout>

@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAction } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
@@ -9,6 +9,7 @@ import { BattleHistory, CardCollection, ChestList, DeckOverview, PlayerHero, Pla
 import { player as mockPlayer, type Player } from "@/lib/mock-data";
 import { errorMessage, isConvexConfigured, playerBundleAction } from "@/lib/convex";
 import { mapPlayerBundle } from "@/lib/clash/mappers";
+import { rememberProfile } from "@/lib/recentProfiles";
 
 export default function PlayerPage() {
   const router = useRouter();
@@ -40,6 +41,11 @@ function LivePlayer({ tag }: { tag: string }) {
 function PlayerDashboard({ player, isRefreshing = false, onRefresh = () => undefined }: { player: Player; isRefreshing?: boolean; onRefresh?: () => void }) {
   const [activeTab, setActiveTab] = useState<PlayerTab>("Statistics");
 
+  // Visiting a profile is what teaches this browser the player's name, so the
+  // next lookup can be by name instead of by tag.
+  useEffect(() => {
+    if (player.tag) rememberProfile({ kind: "players", tag: player.tag, name: player.name });
+  }, [player.tag, player.name]);
 
   return (
     <Layout>

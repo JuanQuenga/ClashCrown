@@ -2,7 +2,7 @@ import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAction } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
@@ -10,6 +10,8 @@ import { ErrorState, LoadingState, SetupState } from "@/components/portfolio/Asy
 import { rarityImage } from "@/lib/clash/assets";
 import { cardSlug, findCardBySlug, relatedCards } from "@/lib/clash/cards";
 import { mapCardList, mapSupportCardList } from "@/lib/clash/mappers";
+import { META_MODES, modeLabel, type MetaMode } from "@/lib/clash/battles";
+import { useCardMeta, DEFAULT_META_MODE } from "@/lib/useCardMeta";
 import type { Card } from "@/lib/mock-data";
 import { cardsAction, errorMessage, isConvexConfigured } from "@/lib/convex";
 
@@ -52,6 +54,9 @@ function CardDetail({ slug }: { slug: string }) {
   const all = useMemo(() => [...(query.data?.cards ?? []), ...(query.data?.towerTroops ?? [])], [query.data]);
   const card = useMemo(() => findCardBySlug(all, slug), [all, slug]);
   const related = useMemo(() => (card ? relatedCards(query.data?.cards ?? [], card) : []), [query.data, card]);
+
+  const [mode, setMode] = useState<MetaMode>(DEFAULT_META_MODE);
+  const meta = useCardMeta(mode);
 
   if (query.isLoading) {
     return (
@@ -108,12 +113,11 @@ function CardDetail({ slug }: { slug: string }) {
           </div>
         </section>
 
+        <CardStats card={card} mode={mode} onModeChange={setMode} meta={meta} />
+
         <section className="profile-section">
           <h2>Similar cards</h2>
-          <p className="table-note">
-            Cards of the same rarity and a comparable elixir cost. Usage and win-rate statistics need a battle history we
-            do not collect yet.
-          </p>
+          <p className="table-note">Cards of the same rarity and a comparable elixir cost.</p>
           <div className="card-library">
             {related.map((item) => (
               <RelatedTile key={item.id ?? item.name} card={item} />
@@ -122,6 +126,79 @@ function CardDetail({ slug }: { slug: string }) {
         </section>
       </div>
     </Layout>
+  );
+}
+
+/**
+ * Usage and win rate for one card, from the battle-log aggregates.
+ *
+ * A card missing from the rankings is reported as "not seen", never as 0% —
+ * the crawler covering a slice of the ladder is a sampling limit, not evidence
+ * that nobody plays the card.
+ */
+function CardStats({
+  card,
+  mode,
+  onModeChange,
+  meta
+}: {
+  card: Card;
+  mode: MetaMode;
+  onModeChange: (mode: MetaMode) => void;
+  meta: ReturnType<typeof useCardMeta>;
+}) {
+  const stat = typeof card.id === "number" ? meta.byId.get(card.id) : undefined;
+
+  return (
+    <section className="profile-section">
+      <div className="section-heading">
+        <h2>Usage in real battles</h2>
+      </div>
+      <div className="beta-tabs" role="group" aria-label="Battle mode">
+        {META_MODES.map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={item === mode ? "beta-tab beta-tab-on" : "beta-tab"}
+            onClick={() => onModeChange(item)}
+          >
+            {modeLabel(item)}
+          </button>
+        ))}
+      </div>
+
+      {stat ? (
+        <div className="beta-grid">
+          <StatTile label="Usage" value={`${(stat.usageRate * 100).toFixed(1)}%`} sub="of decks observed" />
+          <StatTile label="Win rate" value={`${(stat.winRate * 100).toFixed(1)}%`} sub={`${stat.uses.toLocaleString()} games`} />
+          <StatTile label="Most played" value={`#${stat.rank}`} sub={`of ${meta.ranked} cards seen`} />
+        </div>
+      ) : (
+        <p className="empty-results">
+          {meta.loading
+            ? "Loading statistics…"
+            : `${card.name} has not appeared in the ${modeLabel(mode)} battles crawled over the last ${
+                meta.windowDays
+              } days.`}
+        </p>
+      )}
+
+      <p className="table-note">
+        Counted from {Math.round(meta.decksObserved).toLocaleString()} decks in {modeLabel(mode)} over the last{" "}
+        {meta.windowDays} days. The official API publishes no card statistics, so these come from crawled battle logs —
+        a sample of the ladder, not all of it. <Link href="/meta">See the full meta report</Link>.
+      </p>
+    </section>
+  );
+}
+
+function StatTile({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="beta-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{sub}</small>
+    </div>
   );
 }
 

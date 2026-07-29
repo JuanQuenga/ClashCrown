@@ -61,7 +61,34 @@ type ApiErrorBody = {
 };
 
 const cacheApi = anyApi.cache;
+const playersApi = anyApi.players;
 type ActionCtx = GenericActionCtx<GenericDataModel>;
+
+/**
+ * Adds whoever was just looked up to the name directory, so the next visit can
+ * be by name instead of by tag. Best-effort — a directory write must never fail
+ * a profile load.
+ */
+async function rememberPlayers(
+  ctx: ActionCtx,
+  players: Array<{ tag?: string; name?: string; clanTag?: string; clanName?: string; trophies?: number }>
+) {
+  const named = players
+    .filter((player) => player.tag && player.name)
+    .map((player) => ({
+      tag: player.tag!.replace(/^#/, ""),
+      name: player.name!,
+      clanTag: player.clanTag?.replace(/^#/, ""),
+      clanName: player.clanName,
+      trophies: player.trophies
+    }));
+  if (!named.length) return;
+  try {
+    await ctx.runMutation(playersApi.record, { players: named.slice(0, 250) });
+  } catch {
+    // Ignored on purpose.
+  }
+}
 
 /**
  * "International" in the /locations list — the pseudo-location used for global
@@ -212,6 +239,21 @@ export const getPlayerBundle = actionGeneric({
         saveCache(ctx, keys.chests, "chests", chests)
       ]);
 
+      // The looked-up player plus everyone they recently fought. One tag typed
+      // in the search box makes fifty players findable by name.
+      await rememberPlayers(ctx, [
+        { tag: player.tag, name: player.name, clanTag: player.clan?.tag, clanName: player.clan?.name, trophies: player.trophies },
+        ...(battles ?? []).flatMap((battle) =>
+          [...(battle.team ?? []), ...(battle.opponent ?? [])].map((participant) => ({
+            tag: participant.tag,
+            name: participant.name,
+            clanTag: participant.clan?.tag,
+            clanName: participant.clan?.name,
+            trophies: participant.startingTrophies
+          }))
+        )
+      ]);
+
       return {
         player: { data: player, fetchedAt: playerFetchedAt, stale: false },
         battles: { data: battles, fetchedAt: battlesFetchedAt, stale: false },
@@ -249,6 +291,17 @@ export const getClanBundle = actionGeneric({
         name: clan.name,
         value: clan.clanScore ?? 0
       });
+      // A roster is the largest batch of names the API hands over in one call.
+      await rememberPlayers(
+        ctx,
+        (clan.memberList ?? []).map((member) => ({
+          tag: member.tag,
+          name: member.name,
+          clanTag: clan.tag,
+          clanName: clan.name,
+          trophies: member.trophies
+        }))
+      );
       return { clan: { data: clan, fetchedAt, stale: false } };
     } catch (error) {
       if (cached) return { clan: cachedPayload<ApiClan>(cached, true) };

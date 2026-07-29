@@ -397,3 +397,30 @@ export type TopCardsPayload = {
   decksObserved: number;
   cards: RankedCard[];
 };
+
+export type DeckMetaPayload = {
+  windowDays: number;
+  uses: number;
+  wins: number;
+  winRate: number;
+  crownsPerGame: number;
+};
+
+// --- Player name directory ------------------------------------------------
+
+export type DirectoryHit = {
+  tag: string;
+  name: string;
+  clanTag?: string;
+  clanName?: string;
+  trophies?: number;
+  sightings: number;
+  /** The name matched exactly, rather than through the fuzzy search index. */
+  exact: boolean;
+};
+
+export type PlayerSearchPayload = {
+  /** Set when the input could itself be a tag, which is offered as its own result. */
+  tag: string | null;
+  players: DirectoryHit[];
+};

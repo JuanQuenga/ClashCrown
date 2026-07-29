@@ -1,16 +1,19 @@
 import Head from "next/head";
 import Image from "next/image";
+import Link from "next/link";
 import { Check, Copy, LoaderCircle, RefreshCcw, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
-import { useAction } from "convex/react";
+import { useAction, useQuery as useConvexQuery } from "convex/react";
 import { Layout } from "@/components/portfolio/Layout";
 import { cards as localCards, type Card } from "@/lib/mock-data";
 import { mapCardsPayload } from "@/lib/clash/mappers";
 import { averageElixir, copyDeckLink, fourCardCycle } from "@/lib/clash/assets";
 import { cardSlug } from "@/lib/clash/cards";
-import { cardsAction, errorMessage, isConvexConfigured } from "@/lib/convex";
+import { deckHash, META_MODES, modeLabel, type MetaMode } from "@/lib/clash/battles";
+import { DEFAULT_META_MODE, DEFAULT_META_WINDOW } from "@/lib/useCardMeta";
+import { cardsAction, deckMetaQuery, errorMessage, isConvexConfigured } from "@/lib/convex";
 
 /** `/decks?include=<card-slug>` seeds the builder with that card, linked from card detail pages. */
 function useIncludedSlug() {
@@ -41,6 +44,81 @@ function LiveDeckBuilder() {
   }
 
   return <DeckBuilder cards={query.data} source="Live Clash Royale card catalog" onRefresh={() => setRefreshKey((value) => value + 1)} isRefreshing={query.isFetching} />;
+}
+
+/**
+ * How the deck on the workbench has actually performed.
+ *
+ * Looked up by deck hash, so it prices any eight cards rather than only the
+ * decks that made the top-100 board. Evolutions are a different hash upstream;
+ * this asks for the un-evolved variant, which is what the builder describes.
+ */
+function DeckPerformance({ cards }: { cards: Card[] }) {
+  const [mode, setMode] = useState<MetaMode>(DEFAULT_META_MODE);
+
+  const ids = cards.map((card) => card.id).filter((id): id is number => typeof id === "number");
+  const complete = ids.length === 8;
+  const hash = complete ? deckHash(ids, []) : "";
+
+  const stats = useConvexQuery(
+    deckMetaQuery,
+    complete ? { deckHash: hash, mode, windowDays: DEFAULT_META_WINDOW } : "skip"
+  );
+
+  return (
+    <section className="profile-section">
+      <div className="section-heading">
+        <h2>How this deck performs</h2>
+      </div>
+      <div className="beta-tabs" role="group" aria-label="Battle mode">
+        {META_MODES.map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={item === mode ? "beta-tab beta-tab-on" : "beta-tab"}
+            onClick={() => setMode(item)}
+          >
+            {modeLabel(item)}
+          </button>
+        ))}
+      </div>
+
+      {!complete ? (
+        <p className="empty-results">Pick all eight cards to look this deck up in the battle-log statistics.</p>
+      ) : stats === undefined ? (
+        <p className="empty-results">Looking up this deck…</p>
+      ) : stats.uses === 0 ? (
+        <p className="empty-results">
+          This exact eight-card list has not appeared in the {modeLabel(mode)} battles crawled over the last{" "}
+          {DEFAULT_META_WINDOW} days. That makes it rare in the sample, not bad — swap a card to compare against a
+          deck that has been seen.
+        </p>
+      ) : (
+        <div className="beta-grid">
+          <div className="beta-tile">
+            <span>Games observed</span>
+            <strong>{stats.uses.toLocaleString()}</strong>
+            <small>last {stats.windowDays} days</small>
+          </div>
+          <div className="beta-tile">
+            <span>Win rate</span>
+            <strong>{(stats.winRate * 100).toFixed(1)}%</strong>
+            <small>{stats.wins.toLocaleString()} wins</small>
+          </div>
+          <div className="beta-tile">
+            <span>Crowns per game</span>
+            <strong>{stats.crownsPerGame.toFixed(2)}</strong>
+            <small>towers taken</small>
+          </div>
+        </div>
+      )}
+
+      <p className="table-note">
+        Matched on the exact eight cards, ignoring Evolutions and Tower Troops. Numbers come from crawled battle logs,
+        not from the official API. <Link href="/meta">See the decks that top the meta</Link>.
+      </p>
+    </section>
+  );
 }
 
 function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards: Card[]; source: string; onRefresh?: () => void; isRefreshing?: boolean }) {
@@ -129,6 +207,8 @@ function DeckBuilder({ cards, source, onRefresh, isRefreshing = false }: { cards
           </div>
           {notice ? <p className="builder-notice" role="status">{notice}</p> : null}
         </section>
+
+        {isConvexConfigured ? <DeckPerformance cards={selected} /> : null}
 
         <section className="card-browser profile-section">
           <div className="browser-toolbar">

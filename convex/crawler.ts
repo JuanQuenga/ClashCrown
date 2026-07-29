@@ -43,6 +43,27 @@ async function logFetch(ctx: ActionCtx, endpoint: string, status: number, ok: bo
 
 type RunResult = { note?: string; counters?: Record<string, number> };
 
+type Sighting = { tag: string; name: string; clanTag?: string; clanName?: string; trophies?: number };
+
+/**
+ * Feeds the name → tag directory with whatever this job happened to see.
+ *
+ * Chunked because a single discovery pass can surface a thousand players and a
+ * mutation is one transaction. Failures are swallowed: the directory is a
+ * convenience built on the side of the pipeline, and it must never be the
+ * reason a crawl or discovery run is recorded as failed.
+ */
+async function recordSightings(ctx: ActionCtx, sightings: Sighting[]) {
+  const named = sightings.filter((item) => item.tag && item.name);
+  for (let index = 0; index < named.length; index += 250) {
+    try {
+      await ctx.runMutation(internal.players.record, { players: named.slice(index, index + 250) });
+    } catch {
+      return;
+    }
+  }
+}
+
 /** Wraps a job so every execution shows up on the beta page, success or not. */
 async function run(ctx: ActionCtx, job: string, body: () => Promise<RunResult>): Promise<RunResult> {
   const id = await ctx.runMutation(internal.meta.startRun, { job });
@@ -88,6 +109,7 @@ export const discover = internalAction({
 
     return run(ctx, "discover", async (): Promise<RunResult> => {
       const targets: Array<{ tag: string; source: "leaderboard" | "clan"; priority: number }> = [];
+      const sightings: Sighting[] = [];
 
       const boards = await clashRequest<ApiPaged<ApiLeaderboard>>("/leaderboards");
       await logFetch(ctx, "/leaderboards", boards.status, boards.ok);
@@ -102,7 +124,19 @@ export const discover = internalAction({
         await logFetch(ctx, "/leaderboard/{id}", top.status, top.ok);
         if (top.ok) {
           for (const [index, player] of (top.data.items ?? []).entries()) {
-            if (player.tag) targets.push({ tag: player.tag.replace(/^#/, ""), source: "leaderboard", priority: index });
+            if (!player.tag) continue;
+            const tag = player.tag.replace(/^#/, "");
+            targets.push({ tag, source: "leaderboard", priority: index });
+            if (player.name) {
+              sightings.push({
+                tag,
+                name: player.name,
+                clanTag: player.clan?.tag,
+                clanName: player.clan?.name,
+                // Event boards report `score`; the trophy field is absent there.
+                trophies: player.trophies ?? player.score
+              });
+            }
           }
         }
       }
@@ -122,10 +156,23 @@ export const discover = internalAction({
           await logFetch(ctx, "/clans/{tag}", roster.status, roster.ok);
           if (!roster.ok) continue;
           for (const member of roster.data.memberList ?? []) {
-            if (member.tag) targets.push({ tag: member.tag.replace(/^#/, ""), source: "clan", priority: priority++ });
+            if (!member.tag) continue;
+            const tag = member.tag.replace(/^#/, "");
+            targets.push({ tag, source: "clan", priority: priority++ });
+            if (member.name) {
+              sightings.push({
+                tag,
+                name: member.name,
+                clanTag: roster.data.tag?.replace(/^#/, ""),
+                clanName: roster.data.name,
+                trophies: member.trophies
+              });
+            }
           }
         }
       }
+
+      await recordSightings(ctx, sightings);
 
       if (!targets.length) {
         return {
@@ -154,6 +201,9 @@ export const crawl = internalAction({
       let battles = 0;
       let observations = 0;
       let failures = 0;
+      // Every battle names both participants, which makes the crawl the
+      // richest source of (name, tag) pairs the site has.
+      const sightings: Sighting[] = [];
 
       // Sequential on purpose: the shared API token has one rate limit and a
       // burst of parallel requests is the fastest way to get 429ed.
@@ -174,6 +224,19 @@ export const crawl = internalAction({
 
         const collected: DeckObservation[] = [];
         for (const battle of response.data ?? []) {
+          for (const participant of [...(battle.team ?? []), ...(battle.opponent ?? [])]) {
+            if (!participant.tag || !participant.name) continue;
+            sightings.push({
+              tag: participant.tag.replace(/^#/, ""),
+              name: participant.name,
+              clanTag: participant.clan?.tag?.replace(/^#/, ""),
+              clanName: participant.clan?.name,
+              // Battle logs report the trophies a player started the match on,
+              // which is the closest thing to a current count they carry.
+              trophies: participant.startingTrophies
+            });
+          }
+
           // Anything at or before the newest battle we already stored is a
           // re-read; the log is ordered newest first but not guaranteed to be.
           const items = battleObservations(battle);
@@ -190,9 +253,11 @@ export const crawl = internalAction({
         observations += result.observations;
       }
 
+      await recordSightings(ctx, sightings);
+
       return {
         note: `${claimed.length} tags, ${battles} new battles${failures ? `, ${failures} failed` : ""}`,
-        counters: { fetched: claimed.length, battles, observations, failures }
+        counters: { fetched: claimed.length, battles, observations, failures, named: sightings.length }
       };
     });
   }

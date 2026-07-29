@@ -11,8 +11,12 @@ import { cardSlug } from "@/lib/clash/cards";
 import { mapCardList, mapSupportCardList } from "@/lib/clash/mappers";
 import type { Card } from "@/lib/mock-data";
 import { cardsAction, errorMessage, isConvexConfigured } from "@/lib/convex";
+import { modeLabel } from "@/lib/clash/battles";
+import { useCardMeta, type CardMeta } from "@/lib/useCardMeta";
 
 const RARITIES = ["All", "Common", "Rare", "Epic", "Legendary", "Champion"] as const;
+const SORTS = ["Most played", "Best win rate", "Name", "Elixir"] as const;
+type Sort = (typeof SORTS)[number];
 
 export default function CardsPage() {
   if (!isConvexConfigured) {
@@ -30,6 +34,9 @@ function CardLibrary() {
   const [search, setSearch] = useState("");
   const [rarity, setRarity] = useState<(typeof RARITIES)[number]>("All");
   const [showTowerTroops, setShowTowerTroops] = useState(false);
+  const [sort, setSort] = useState<Sort>("Most played");
+
+  const meta = useCardMeta();
 
   const query = useQuery({
     queryKey: ["card-library"],
@@ -46,14 +53,23 @@ function CardLibrary() {
 
   const source = showTowerTroops ? query.data?.towerTroops ?? [] : query.data?.cards ?? [];
 
-  const filtered = useMemo(
-    () =>
-      source.filter((card) => {
-        const matchesSearch = card.name.toLowerCase().includes(search.trim().toLowerCase());
-        return matchesSearch && (rarity === "All" || card.rarity === rarity);
-      }),
-    [source, rarity, search]
-  );
+  const filtered = useMemo(() => {
+    const matches = source.filter((card) => {
+      const matchesSearch = card.name.toLowerCase().includes(search.trim().toLowerCase());
+      return matchesSearch && (rarity === "All" || card.rarity === rarity);
+    });
+
+    // Cards the crawler has never seen sort last rather than sorting as zero,
+    // so an unplayed card and a card with no data are not shown as the same
+    // thing. The catalog's own order is the tiebreaker.
+    const stat = (card: Card) => (typeof card.id === "number" ? meta.byId.get(card.id) : undefined);
+    const ranked = [...matches];
+    if (sort === "Most played") ranked.sort((a, b) => (stat(b)?.uses ?? -1) - (stat(a)?.uses ?? -1));
+    if (sort === "Best win rate") ranked.sort((a, b) => (stat(b)?.winRate ?? -1) - (stat(a)?.winRate ?? -1));
+    if (sort === "Name") ranked.sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === "Elixir") ranked.sort((a, b) => (a.elixir || 99) - (b.elixir || 99));
+    return ranked;
+  }, [source, rarity, search, sort, meta.byId]);
 
   const evolutions = useMemo(() => (query.data?.cards ?? []).filter((card) => card.canEvolve).length, [query.data]);
 
@@ -107,14 +123,36 @@ function CardLibrary() {
                 ))}
               </select>
             </label>
+            <label className="rarity-filter">
+              <span className="sr-only">Sort cards</span>
+              <select value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+                {SORTS.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
             <button type="button" className={showTowerTroops ? "pink-button" : ""} onClick={() => setShowTowerTroops((v) => !v)}>
               {showTowerTroops ? "Showing Tower Troops" : "Show Tower Troops"}
             </button>
           </div>
 
+          <p className="table-note">
+            {meta.loading
+              ? "Loading usage statistics…"
+              : meta.decksObserved
+                ? `Usage is the share of ${Math.round(meta.decksObserved).toLocaleString()} decks observed in ${modeLabel(
+                    meta.mode
+                  )} over the last ${meta.windowDays} days of crawled battle logs. Tower Troops are not counted — they sit outside the eight-card deck.`
+                : "No battle-log statistics have been collected yet, so cards are shown without usage."}
+          </p>
+
           <div className="card-library">
             {filtered.map((card) => (
-              <CardTile key={card.id ?? card.name} card={card} />
+              <CardTile
+                key={card.id ?? card.name}
+                card={card}
+                meta={typeof card.id === "number" ? meta.byId.get(card.id) : undefined}
+              />
             ))}
           </div>
           {!filtered.length ? <p className="empty-results">No cards match those filters.</p> : null}
@@ -124,7 +162,7 @@ function CardLibrary() {
   );
 }
 
-function CardTile({ card }: { card: Card }) {
+function CardTile({ card, meta }: { card: Card; meta?: CardMeta }) {
   return (
     <Link href={`/cards/${cardSlug(card.name)}`} className="card-tile">
       {card.canEvolve ? <span className="evo-flag">EVO</span> : null}
@@ -133,6 +171,11 @@ function CardTile({ card }: { card: Card }) {
       <span>
         {card.rarity} · {card.elixir || "?"}
       </span>
+      {meta ? (
+        <small className="card-tile-meta">
+          {(meta.usageRate * 100).toFixed(1)}% used · {(meta.winRate * 100).toFixed(0)}% win
+        </small>
+      ) : null}
     </Link>
   );
 }
