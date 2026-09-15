@@ -1,5 +1,9 @@
 # Clash Crown
 
+Development has moved to [StatsConnect](https://github.com/JuanQuenga/statsconnect), which brings together Brawl Stars and Clash Royale statistics. Use that repository for new issues and contributions.
+
+The documentation below describes this predecessor project and is retained for historical reference.
+
 Clash Crown is a full Clash Royale companion website built with Next.js, TypeScript, Tailwind CSS, TanStack Query, and Convex.
 
 ## Features
